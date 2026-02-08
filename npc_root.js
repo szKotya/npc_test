@@ -545,22 +545,27 @@ function Tick_Text()
 	{
 		for (const NPC of NPC_LIST)
 		{
-			szText += `${NPC.szNamePref}: ${NPC.iHP_Base}/${NPC.iHP_Head}\n`
+			let ang = NPC.lMover.GetAbsAngles()
+			szText += `${NPC.szNamePref}: ${ang.pitch}/${ang.yaw}/${ang.roll}\n`
 		}
 	}
 	else
 	{
 		szText = "Empty"
 	}
+	// const PLAYERS = Instance.FindEntitiesByClass("player");
+
+	// let vVel = PLAYERS[1].GetAbsVelocity()
+	// szText += `${vVel.x} ${vVel.y} ${vVel.z} ${Vector3Utils.length(vVel)} `
 
 	let x = 350
 	let y = 300
 	let color = { r: 127, g: 127, b: 127, a: 255 };
 
-	Instance.DebugScreenText(szText, x, y, 1, color)
+	Instance.DebugScreenText(szText, x, y, 0.2, color)
 }
 
-class NPC_BASE
+class class_npc_base
 {
 	szNamePref;
 
@@ -579,15 +584,96 @@ class NPC_BASE
 
 	bHasHead
 
+	iTarget
+
+	Ticking
+
 	constructor(_szNamePref, _lMover, _lt_f, _lt_u)
 	{
 		this.szNamePref = _szNamePref;
 		this.lMover = _lMover;
-		this.aHitbox_Base = []
-		this.aHitbox_Head = []
+		this.aHitbox_Base = [];
+		this.aHitbox_Head = [];
 
-		this.szBodyGroupHeadBreak = undefined
-		this.bHasHead = true
+		this.szBodyGroupHeadBreak = null;
+		this.bHasHead = true;
+
+		this.iTarget = null;
+		const PLAYERS = Instance.FindEntitiesByClass("player");
+
+		if (PLAYERS.length > 0)
+		{
+			this.iTarget = PLAYERS[1];
+			this.iTarget.SetMaxHealth(900);
+			this.iTarget.SetHealth(900);
+		}
+
+		this.Ticking = setInterval(() => {
+			this.Tick();
+		}, 0.02 * 1000);
+	}
+
+	Tick()
+	{
+		this.Tick_Movement()
+	}
+
+	Tick_Movement()
+	{
+		if (!this.TargetValid())
+		{
+			return
+		}
+		let me_Origin = this.lMover.GetAbsOrigin()
+		let me_Angles = this.lMover.GetAbsAngles()
+		let target_Origin = this.iTarget.GetAbsOrigin()
+
+		let target_Angles = Vector3Utils.lookAt(me_Origin, target_Origin);
+		target_Angles.roll = 0
+		target_Angles.pitch = 0
+	
+		let Step = 10
+		let qAngles = EulerUtils.rotateTowards(me_Angles, target_Angles, Step)
+
+		let fDistance = Vector3Utils.distance(me_Origin, target_Origin)
+		let fDistance_Limit = 50;
+		let vVelocity = {x: 0, y: 0, z: 0}
+		if (fDistance > fDistance_Limit)
+		{
+			let fSpeed = 150.0;
+			let fLimit = 500.0;
+			
+			let me_Velocity = this.lMover.GetAbsVelocity();
+			vVelocity = Vector3Utils.add(me_Velocity, (Vector3Utils.scale(EulerUtils.forward(target_Angles), fSpeed)))
+			Instance.Msg(Vector3Utils.length(vVelocity) + " " + fLimit + "|" + vVelocity.x + " " + vVelocity.y + " " + vVelocity.z)
+			if (Vector3Utils.length(vVelocity) > fLimit)
+			{
+				Instance.Msg("reset")
+				vVelocity = {x: 0, y: 0, z: 0}
+			}
+		}
+		
+		
+		if (Vector3Utils.equals({x: 0, y: 0, z: 0}, vVelocity))
+		{
+			Instance.Msg("not set" + vVelocity.x + " " + vVelocity.y + " " + vVelocity.z)
+			this.lMover.Teleport({angles: qAngles})
+		}
+		else
+		{
+			Instance.Msg("set")
+			this.lMover.Teleport({angles: qAngles, velocity: vVelocity})
+		}
+	}
+
+	TargetValid()
+	{
+		if (this.iTarget == null)
+		{
+			return false;
+		}
+
+		return true
 	}
 
 	DamageBullet(aData)
@@ -621,9 +707,8 @@ class NPC_BASE
 
 	BreakHead(lHead)
 	{
-		Instance.Msg("123")
 		Instance.EntFireAtTarget({target: lHead, input: "Kill"})
-		if (this.szBodyGroupHeadBreak != undefined)
+		if (this.szBodyGroupHeadBreak != null)
 		{
 			Instance.EntFireAtTarget({target: this.lModel, input: "SetBodyGroup", value: this.szBodyGroupHeadBreak})
 		}
@@ -637,6 +722,25 @@ function SpawnNPC(vec)
 	let Template = Instance.FindEntityByName("npc_00");
 	Template.ForceSpawn(vec);
 }
+
+Instance.OnScriptInput("Test", (Activator_Caller_Data) => {
+	const activator = Activator_Caller_Data.activator
+	const conntroller_player = activator.GetPlayerController()
+	const pawn_player = conntroller_player.GetPlayerPawn()
+
+	Instance.Msg(activator + ' ' + conntroller_player.GetPlayerName())
+	const knife = activator.FindWeaponBySlot(2);
+	pawn_player.SwitchToWeapon(knife)
+
+})
+
+Instance.OnScriptInput("Rotate", (Activator_Caller_Data) => {
+	for (const NPC of NPC_LIST)
+	{
+		NPC.Tick_Movement()
+	}
+})
+
 Instance.OnScriptInput("Input_Connect_NPC_00", (Activator_Caller_Data) => {
 	let szNamePref = Activator_Caller_Data.caller.GetEntityName().replace("npc_00_connect_relay", "")
 
@@ -647,7 +751,7 @@ Instance.OnScriptInput("Input_Connect_NPC_00", (Activator_Caller_Data) => {
 	let lHitBox_Head = Instance.FindEntityByName("npc_00_hitbox_b" + szNamePref)
 	let lModel = Instance.FindEntityByName("npc_00_model" + szNamePref)
 
-	let NPC = new NPC_BASE(szNamePref, lMover);
+	let NPC = new class_npc_base(szNamePref, lMover);
 
 	NPC.lt_f = lt_f
 	NPC.lt_u = lt_u
@@ -672,7 +776,7 @@ Instance.OnScriptInput("Input_Connect_NPC_00", (Activator_Caller_Data) => {
 function Input_Damage_NPC(aData)
 {
 	let CLASS_NPC = GetNPCClassByPhysBox(aData.caller);
-	if (CLASS_NPC == undefined)
+	if (CLASS_NPC == null)
 	{
 
 		return
@@ -701,7 +805,7 @@ function GetNPCClassByPhysBox(Phys)
 		}
 	}
 
-	return undefined;
+	return null;
 }
 
 
