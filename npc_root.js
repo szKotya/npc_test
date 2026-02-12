@@ -640,8 +640,8 @@ class class_npc_base
 		let vVelocity = {x: 0, y: 0, z: 0}
 		if (fDistance > fDistance_Limit)
 		{
-			let fSpeed = 150.0;
-			let fLimit = 500.0;
+			let fSpeed = 80.0;
+			let fLimit = 250.0;
 			
 			let me_Velocity = this.lMover.GetAbsVelocity();
 			vVelocity = Vector3Utils.add(me_Velocity, (Vector3Utils.scale(EulerUtils.forward(target_Angles), fSpeed)))
