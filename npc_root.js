@@ -509,6 +509,14 @@ let CLEAR_ALL_INTERVAL = false;
 
 let NPC_LIST = []
 
+const NPC_ANIM_STATUS = {
+	NONE: 0,
+	MOVE: 1,
+	ATTACK: 2,
+	IDLE: 3,
+	DEATH: 4,
+}
+
 Instance.OnRoundStart(() => {
 	clearTasks();
 	NPC_LIST = []
@@ -518,7 +526,6 @@ Instance.OnRoundStart(() => {
 
 function Start_Ticks()
 {
-	Instance.Msg("123")
 	const interval = setInterval(() => {
 			if (CLEAR_ALL_INTERVAL) {
 				clearInterval(interval);
@@ -565,68 +572,156 @@ function Tick_Text()
 	Instance.DebugScreenText(szText, x, y, 0.2, color)
 }
 
+
+
 class class_npc_base
 {
 	szNamePref;
 
 	lMover;
-	lt_f;
-	lt_u;
+	lKeep;
 
 	aHitbox_Base;
 	aHitbox_Head;
 
-	iHP_Base
+	iHP_Base;
 	iHP_Head;
 
-	lModel
-	szBodyGroupHeadBreak
+	lModel;
+	szBodyGroupHeadBreak;
 
-	bHasHead
+	bHasHead;
 
-	iTarget
+	lTarget;
 
-	Ticking
+	lLastDamager;
+	Ticking;
+	Death;
 
-	constructor(_szNamePref, _lMover, _lt_f, _lt_u)
+	iNPCStatus;
+	fLastAttack;
+
+	constructor(_szNamePref)
 	{
 		this.szNamePref = _szNamePref;
-		this.lMover = _lMover;
+		this.fLastAttack = 0.0;
+
 		this.aHitbox_Base = [];
 		this.aHitbox_Head = [];
 
 		this.szBodyGroupHeadBreak = null;
 		this.bHasHead = true;
+		this.Death = false;
+		this.iNPCStatus = NPC_ANIM_STATUS.NONE;
 
-		this.iTarget = null;
+		this.lTarget = null;
+		this.lLastDamager = null;
+
 		const PLAYERS = Instance.FindEntitiesByClass("player");
 
 		if (PLAYERS.length > 0)
 		{
-			this.iTarget = PLAYERS[1];
-			this.iTarget.SetMaxHealth(900);
-			this.iTarget.SetHealth(900);
+			this.lTarget = PLAYERS[1];
+			this.lTarget.SetMaxHealth(900);
+			this.lTarget.SetHealth(900);
 		}
 
 		this.Ticking = setInterval(() => {
+			if (CLEAR_ALL_INTERVAL) {
+				clearInterval(this.Ticking);
+				return;
+			}
 			this.Tick();
 		}, 0.02 * 1000);
 	}
 
 	Tick()
 	{
-		this.Tick_Movement()
+		if (this.Death)
+		{
+			return
+		}
+	
+		this.Tick_Attack();
+		this.Tick_Movement();
+		this.Tick_Anim();
+	}
+
+	Tick_Attack()
+	{
+		if (!this.TargetValid() ||
+		(this.fLastAttack > Instance.GetGameTime()) ||
+		(this.iNPCStatus != NPC_ANIM_STATUS.NONE && this.iNPCStatus != NPC_ANIM_STATUS.MOVE))
+		{
+			return;
+		}
+
+		let me_Origin = this.lMover.GetAbsOrigin()
+		let target_Origin = this.lTarget.GetAbsOrigin()
+
+		let fDistance = Vector3Utils.distance(me_Origin, target_Origin)
+		if (fDistance > 20)
+		{
+			return
+		}
+
+		this.iNPCStatus = NPC_ANIM_STATUS.ATTACK;
+		this.SetAnimation("chaval1", 0.0, 1.0, true);
+
+
+		const lTarget = this.lTarget;
+		let fDelay = 3.00;
+		const fTickrate = 0.5;
+		
+		Instance.EntFireAtTarget({target: lTarget, input: "KeyValues", value: "movetype 1" });
+
+		const TimerAlpha = setInterval(() => {
+			if (CLEAR_ALL_INTERVAL ||
+			fDelay <= 0.0 ||
+			!this.TargetValid(lTarget) ||
+			this.Death)
+			{
+				clearInterval(TimerAlpha);
+				this.iNPCStatus = NPC_ANIM_STATUS.NONE;
+				this.fLastAttack = Instance.GetGameTime() + 1.0;
+				if (IsValidPlayer(lTarget))
+				{
+					Instance.EntFireAtTarget({target: lTarget, input: "KeyValues", value: "movetype 2"});
+				}
+				return;
+			}
+
+			let iHP = lTarget.GetHealth() - 15;
+			Instance.EntFireAtTarget({target: lTarget, input: "SetHealth", value: iHP });
+			fDelay -= fTickrate;
+
+		}, fTickrate * 1000);
+	}
+
+	Tick_Anim()
+	{
+		if (this.iNPCStatus != NPC_ANIM_STATUS.NONE)
+		{
+			return;
+		}
+		const szMove = ["walk1", "move"]
+		const iValue = GetRandomInt(0, szMove.length-1);
+
+		this.iNPCStatus = NPC_ANIM_STATUS.MOVE;
+		this.SetAnimation(szMove[iValue], 0.0, 1.0, true);
+	
 	}
 
 	Tick_Movement()
 	{
-		if (!this.TargetValid())
+		if (!this.TargetValid() ||
+		this.iNPCStatus != NPC_ANIM_STATUS.MOVE)
 		{
 			return
 		}
 		let me_Origin = this.lMover.GetAbsOrigin()
 		let me_Angles = this.lMover.GetAbsAngles()
-		let target_Origin = this.iTarget.GetAbsOrigin()
+		let target_Origin = this.lTarget.GetAbsOrigin()
 
 		let target_Angles = Vector3Utils.lookAt(me_Origin, target_Origin);
 		target_Angles.roll = 0
@@ -636,7 +731,7 @@ class class_npc_base
 		let qAngles = EulerUtils.rotateTowards(me_Angles, target_Angles, Step)
 
 		let fDistance = Vector3Utils.distance(me_Origin, target_Origin)
-		let fDistance_Limit = 50;
+		let fDistance_Limit = 10;
 		let vVelocity = {x: 0, y: 0, z: 0}
 		if (fDistance > fDistance_Limit)
 		{
@@ -645,10 +740,8 @@ class class_npc_base
 			
 			let me_Velocity = this.lMover.GetAbsVelocity();
 			vVelocity = Vector3Utils.add(me_Velocity, (Vector3Utils.scale(EulerUtils.forward(target_Angles), fSpeed)))
-			Instance.Msg(Vector3Utils.length(vVelocity) + " " + fLimit + "|" + vVelocity.x + " " + vVelocity.y + " " + vVelocity.z)
 			if (Vector3Utils.length(vVelocity) > fLimit)
 			{
-				Instance.Msg("reset")
 				vVelocity = {x: 0, y: 0, z: 0}
 			}
 		}
@@ -656,20 +749,19 @@ class class_npc_base
 		
 		if (Vector3Utils.equals({x: 0, y: 0, z: 0}, vVelocity))
 		{
-			Instance.Msg("not set" + vVelocity.x + " " + vVelocity.y + " " + vVelocity.z)
 			this.lMover.Teleport({angles: qAngles})
 		}
 		else
 		{
-			Instance.Msg("set")
 			this.lMover.Teleport({angles: qAngles, velocity: vVelocity})
 		}
 	}
 
 	TargetValid()
 	{
-		if (this.iTarget == null)
+		if (!IsValidAliveCT(this.lTarget))
 		{
+			this.lTarget = null;
 			return false;
 		}
 
@@ -684,8 +776,19 @@ class class_npc_base
 			bHead = true
 		}
 		
-		let iDamager = aData.activator;
 		let iDamage = 1
+		
+		this.lLastDamager = aData.activator
+		this.HP_Checks(bHead, iDamage, aData.caller, aData.activator)
+	}
+
+	HP_Checks(bHead, iDamage, lHitbox, lDamager)
+	{
+		if (iDamage == -1)
+		{
+			iDamage = this.iHP_Base;
+		}
+
 		if (bHead)
 		{
 			this.iHP_Head -= iDamage
@@ -694,15 +797,135 @@ class class_npc_base
 
 			if (this.iHP_Head < 1)
 			{
-				this.BreakHead(aData.caller)
+				this.BreakHead(lHitbox)
 			}
 		}
 
 		this.iHP_Base -= iDamage
 		if (this.iHP_Base < 1)
 		{
-			this.BreakBase(aData.caller)
+			this.BreakBase()
 		}
+	}
+
+	GetDeathAnim()
+	{
+		const szDeath = [ 	"deaf",
+							"dead2",
+							"dead",]
+		const iValue = GetRandomInt(0, szDeath.length-1);
+
+
+		this.SetAnimation(szDeath[iValue]);
+		this.SetDefaultAnimation(szDeath[iValue], 0.00, false);
+		// Instance.EntFireAtTarget({target: this.lModel, input: "SetAnimation", value: szDeath[iValue]})
+		// Instance.EntFireAtTarget({target: this.lModel, input: "SetDefaultAnimationNotLooping", value: szDeath[iValue]})
+		
+		return undefined;
+	}
+
+
+	SetAnimation(szName, fDelay = 0.00, fRate = 1.00, bLoop = false)
+	{
+		if (bLoop)
+		{
+			Instance.EntFireAtTarget({target: this.lModel, input: "SetAnimationLooping", value: szName, delay: fDelay});
+		}
+		else
+		{
+			Instance.EntFireAtTarget({target: this.lModel, input: "SetAnimationNotLooping", value: szName, delay: fDelay});
+		}
+		Instance.EntFireAtTarget({target: this.lModel, input: "SetPlayBackRate", value: fRate, delay: fDelay});
+	}
+
+	SetDefaultAnimation(szName, fDelay = 0.00, bLoop = true)
+	{
+		if (bLoop)
+		{
+			Instance.Msg(`${this.lModel.GetEntityName()} "SetIdleAnimationLooping" ${szName} ${fDelay}`)
+			Instance.EntFireAtTarget({target: this.lModel, input: "SetIdleAnimationLooping", value: szName, delay: fDelay});
+		}
+		else
+		{
+			Instance.EntFireAtTarget({target: this.lModel, input: "SetIdleAnimationNotLooping", value: szName, delay: fDelay});
+		}
+	}
+
+
+	KillBase()
+	{
+		clearTimeout(this.Ticking)
+		RemoveNPC(this.szNamePref)
+		this.Death = true;
+
+		for (const Hitbox of this.aHitbox_Base)
+		{
+			Instance.EntFireAtTarget({target: Hitbox, input: "Kill"})
+		}
+
+		for (const Hitbox of this.aHitbox_Head)
+		{
+			Instance.EntFireAtTarget({target: Hitbox, input: "Kill"})
+		}
+	}
+
+	KillBaseFull()
+	{
+		Instance.EntFireAtTarget({target: this.lKeep, input: "Kill"})
+		Instance.EntFireAtTarget({target: this.lMover, input: "Kill"})
+		Instance.EntFireAtTarget({target: this.lModel, input: "Kill"})
+	}
+
+	Kill()
+	{
+		if (this.Death)
+		{
+			return
+		}
+		this.KillBase()
+		this.KillBaseFull()
+	}
+
+	KillFade()
+	{
+		if (this.Death)
+		{
+			return
+		}
+		this.KillBase()
+
+		let fDelay = this.GetDeathAnim();
+		if (fDelay == undefined)
+		{
+			fDelay = 5.0;
+		}
+		
+		const DelayFade = setTimeout(() => {
+			if (CLEAR_ALL_INTERVAL) {
+				clearInterval(DelayFade);
+				return;
+			}
+			let iAlpha = 255
+			const TimerAlpha = setInterval(() => {
+
+			if (CLEAR_ALL_INTERVAL ||
+				iAlpha < 50)
+			{
+				clearInterval(TimerAlpha);
+
+				this.KillBaseFull();
+				return;
+			}
+			iAlpha -= 3;
+			Instance.EntFireAtTarget({target: this.lModel, input: "Alpha", value: "" + iAlpha})
+		}, 0.05 * 1000);
+
+		}, fDelay * 1000);
+	}
+
+	BreakBase()
+	{
+		this.KillFade()
 	}
 
 	BreakHead(lHead)
@@ -713,6 +936,17 @@ class class_npc_base
 			Instance.EntFireAtTarget({target: this.lModel, input: "SetBodyGroup", value: this.szBodyGroupHeadBreak})
 		}
 		this.aHitbox_Head = []
+
+		this.bHasHead = false;
+		const lLastDamager = this.lLastDamager 
+		
+		const DelayDeath = setTimeout(() => {
+			if (CLEAR_ALL_INTERVAL) {
+				clearInterval(DelayDeath);
+				return;
+			}
+			this.HP_Checks(false, -1, lHead, lLastDamager)
+		}, 3000);
 	}
 }
 
@@ -721,6 +955,18 @@ function SpawnNPC(vec)
 	Instance.Msg("SpawnNPC")
 	let Template = Instance.FindEntityByName("npc_00");
 	Template.ForceSpawn(vec);
+}
+
+function RemoveNPC(szNamePref)
+{
+	for (let i = 0; i < NPC_LIST.length; i++)
+	{
+		if (NPC_LIST[i].szNamePref == szNamePref)
+		{
+			NPC_LIST.splice(i, 1);
+			return
+		}
+	}
 }
 
 Instance.OnScriptInput("Test", (Activator_Caller_Data) => {
@@ -745,23 +991,23 @@ Instance.OnScriptInput("Input_Connect_NPC_00", (Activator_Caller_Data) => {
 	let szNamePref = Activator_Caller_Data.caller.GetEntityName().replace("npc_00_connect_relay", "")
 
 	let lMover = Instance.FindEntityByName("npc_00_phys" + szNamePref)
-	let lt_f = Instance.FindEntityByName("npc_00_tr_f" + szNamePref)
-	let lt_u = Instance.FindEntityByName("npc_00_tr_u" + szNamePref)
+
 	let lHitBox_Base = Instance.FindEntityByName("npc_00_hitbox_a" + szNamePref) 
 	let lHitBox_Head = Instance.FindEntityByName("npc_00_hitbox_b" + szNamePref)
 	let lModel = Instance.FindEntityByName("npc_00_model" + szNamePref)
+	let lKeep = Instance.FindEntityByName("npc_00_keep" + szNamePref)
 
-	let NPC = new class_npc_base(szNamePref, lMover);
+	let NPC = new class_npc_base(szNamePref);
 
-	NPC.lt_f = lt_f
-	NPC.lt_u = lt_u
+	NPC.lMover = lMover;
+	NPC.lKeep = lKeep;
 	NPC.lModel = lModel
 	NPC.szBodyGroupHeadBreak = "normal, 0"
 
 	NPC.aHitbox_Base.push(lHitBox_Base)
 	NPC.aHitbox_Head.push(lHitBox_Head)
 
-	NPC.iHP_Base = 20;
+	NPC.iHP_Base = 10;
 	NPC.iHP_Head = 2;
 
 	Instance.ConnectOutput(lHitBox_Base, "OnHealthChanged", (Activator_Caller_Data) => {
@@ -778,7 +1024,6 @@ function Input_Damage_NPC(aData)
 	let CLASS_NPC = GetNPCClassByPhysBox(aData.caller);
 	if (CLASS_NPC == null)
 	{
-
 		return
 	}
 	CLASS_NPC.DamageBullet(aData)
@@ -808,13 +1053,25 @@ function GetNPCClassByPhysBox(Phys)
 	return null;
 }
 
+function IsValidAliveCT(player)
+{
+	return (player != null && player.IsValid() && player.IsAlive() && player.GetTeamNumber() == 3)
+}
 
 function IsValidPlayer(player)
 {
-	return player != null && player?.IsValid() && player?.IsAlive()
+	return (player != null && player.IsValid() && player.IsAlive())
 }
 
 function GetValidPlayers() 
 {
 	return Instance.FindEntitiesByClass("player").filter(p => IsValidPlayer(p));
+}
+
+function GetRandomInt(min, max)
+{
+    min = Math.ceil(min);
+    max = Math.floor(max);
+	Instance.Msg(`${min} + ${max}`)
+    return Math.floor(Math.random() * (max - min + 1)) + min;
 }

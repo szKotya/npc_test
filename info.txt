@@ -20,15 +20,20 @@ idle4
 walk1
 move
 
+[смерть]
+deaf - из idle упал в звездочку
+dead2 - из idle упал в звездочку
+dead - из idle упал в вперед лицом на животе
+
 [снесли бошку]
 headshoot
 
 [xz]
 fakedeath - Лежит фоткает
-deaf - из idle упал в звездочку
+
 closehuman - рывок
-dead2 - из idle упал в звездочку
-dead - из idle упал в вперед лицом на животе
+
+
 chaval1 - схватил
 chaval - схватил?
 
