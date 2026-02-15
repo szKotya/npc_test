@@ -538,6 +538,13 @@ function Start_Ticks()
 
 	setTimeout(() => {
 		SpawnNPC(new Vec3(118, 272, 64));
+		
+		const PLAYERS = Instance.FindEntitiesByClass("player");
+		for (const player of PLAYERS)
+		{
+			InitPlayer(player);
+		}
+		
 	}, 1500);
 
 	Instance.EntFireAtName({name: "npc_00_*", input: "Kill"})
@@ -572,7 +579,7 @@ function Tick_Text()
 	Instance.DebugScreenText(szText, x, y, 0.2, color)
 }
 
-const PLAYERS = new Map();
+const g_PLAYERS = new Map();
 class class_player
 {
 	player;
@@ -580,12 +587,51 @@ class class_player
 	player_slot;
 	player_name;
 
+	aZombieGrab;
+
 	constructor(_player, _player_controller, _player_slot, _player_name)
 	{
 		this.player = _player;
 		this.player_controller = _player_controller;
 		this.player_slot = _player_slot;
 		this.player_name = _player_name;
+
+		this.ResetRound()
+	}
+
+	ResetRound()
+	{
+		this.aZombieGrab = [];
+		Instance.EntFireAtTarget({target: this.player, input: "KeyValues", value: "movetype 2" });
+	}
+
+	GrabZombieStart(szPref)
+	{
+		if (this.aZombieGrab.length < 1)
+		{
+			Instance.EntFireAtTarget({target: this.player, input: "KeyValues", value: "movetype 1" });
+		}
+
+		const ZombieGrabIndex = GetIndexInArray(szPref, this.aZombieGrab);
+
+		if (ZombieGrabIndex == -1)
+		{
+			this.aZombieGrab.push(szPref);
+		}
+	}
+
+	UnGrabZombieStart(szPref)
+	{
+		const ZombieGrabIndex = GetIndexInArray(szPref, this.aZombieGrab);
+		if (ZombieGrabIndex != -1)
+		{
+			this.aZombieGrab.splice(ZombieGrabIndex, 1);
+		}
+
+		if (this.aZombieGrab.length < 1)
+		{
+			Instance.EntFireAtTarget({target: this.player, input: "KeyValues", value: "movetype 2"});
+		}
 	}
 }
 
@@ -683,12 +729,17 @@ class class_npc_base
 		this.iNPCStatus = NPC_ANIM_STATUS.ATTACK;
 		this.SetAnimation("chaval1", 0.0, 1.0, true);
 
-
 		const lTarget = this.lTarget;
-		let fDelay = 3.00;
-		const fTickrate = 0.5;
+		const szPref = this.szNamePref;
 		
-		Instance.EntFireAtTarget({target: lTarget, input: "KeyValues", value: "movetype 1" });
+		const fTickrate = 0.5;
+		let fDelay = 3.00;
+		
+		const player_class = GetPlayerClassByPlayer(lTarget);
+		if (player_class != null)
+		{
+			player_class.GrabZombieStart(szPref)
+		}
 
 		const TimerAlpha = setInterval(() => {
 			if (CLEAR_ALL_INTERVAL ||
@@ -701,8 +752,13 @@ class class_npc_base
 				this.fLastAttack = Instance.GetGameTime() + 1.0;
 				if (IsValidPlayer(lTarget))
 				{
-					Instance.EntFireAtTarget({target: lTarget, input: "KeyValues", value: "movetype 2"});
+					const player_class_new = GetPlayerClassByPlayer(lTarget);
+					if (player_class_new != null)
+					{
+						player_class_new.UnGrabZombieStart(szPref)
+					}
 				}
+
 				return;
 			}
 
@@ -979,41 +1035,50 @@ function RemoveNPC(szNamePref)
 		}
 	}
 }
+Instance.OnPlayerDisconnect((hEvent) => {
+	g_PLAYERS.delete(hEvent.playerSlot);
+});
 
-Instance.OnPlayerResest((hEvent) => {
+Instance.OnPlayerReset((hEvent) => {
 	const player = hEvent.player;
 	if (!player?.IsValid())
 	{
 		return;
 	}
 
+	InitPlayer(player);
+})
+
+function InitPlayer(player)
+{
 	const player_controller = player.GetPlayerController();
 	const player_name = player_controller?.GetPlayerName();
 	const player_slot = player_controller?.GetPlayerSlot();
-
-	if (!PLAYERS.has(player_slot))
+	if (!g_PLAYERS.has(player_slot))
 	{
-		PLAYERS.set(player_slot, new class_player(player, player_controller, player_slot, player_name));
+		g_PLAYERS.set(player_slot, new class_player(player, player_controller, player_slot, player_name));
 		return;
 	}
 
-	const player_class = PLAYERS.get(player_slot);
+	const player_class = g_PLAYERS.get(player_slot);
 	player_class.player = player;
 	player_class.player_controller = player_controller;
 	player_class.player_slot = player_slot;
 	player_class.player_name = player_name;
-})
+
+	player_class.ResetRound();
+}
 
 Instance.OnScriptInput("Tes", (Activator_Caller_Data) => {
-	Instance.Msg("1231t")
-	for (let i = 0; i < PLAYERS.length; i++)
+	let player_class = GetPlayerClassByPlayer(Activator_Caller_Data.activator);
+	if (player_class == null)
 	{
-		Instance.Msg(`${i+1})${PLAYERS[i]}`)
+		return;
 	}
+	Instance.Msg("123 " + player_class.player_name);
 })
 
 Instance.OnScriptInput("Input_Connect_NPC_00", (Activator_Caller_Data) => {
-	Instance.Msg("123");
 	let szNamePref = Activator_Caller_Data.caller.GetEntityName().replace("npc_00_connect_relay", "")
 
 	let lMover = Instance.FindEntityByName("npc_00_phys" + szNamePref)
@@ -1053,6 +1118,33 @@ function Input_Damage_NPC(aData)
 		return
 	}
 	class_NPC.DamageBullet(aData)
+}
+
+function GetPlayerClassByPlayer(player)
+{
+	const player_controller = player?.GetPlayerController();
+	if (player_controller?.IsValid())
+	{
+		const player_slot = player_controller.GetPlayerSlot();
+		if (g_PLAYERS.has(player_slot))
+		{
+			return g_PLAYERS.get(player_slot);
+		}
+	}
+	return null;
+}
+
+function GetIndexInArray(value, array)
+{
+	for (let i = 0; i < array.length; i++)
+	{
+		if (array[i] == value)
+		{
+			return i;
+		}
+	}
+
+	return -1;
 }
 
 function GetNPCClassByPhysBox(Phys)
