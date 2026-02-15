@@ -46,3 +46,12 @@ letmein
 fence
 fence1
 */
+
+// При дисконекте удаление из массива игроков
+Instance.OnPlayerDisconnect
+
+// Экран выбора команды выставление перма переменных
+Instance.OnPlayerActivate
+
+// Вызывается при спавне ресет всего
+Instance.OnPlayerReset

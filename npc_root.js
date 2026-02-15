@@ -504,7 +504,7 @@ Instance.OnRoundEnd((stuff) => {
     CLEAR_ALL_INTERVAL = true;
 });
 
-Instance.Msg("Script Loaded");
+Instance.Msg("Script Loaded!");
 let CLEAR_ALL_INTERVAL = false;
 
 let NPC_LIST = []
@@ -567,12 +567,27 @@ function Tick_Text()
 
 	let x = 350
 	let y = 300
-	let color = { r: 127, g: 127, b: 127, a: 255 };
+	let color = { r: 255, g: 0, b: 0, a: 255 };
 
 	Instance.DebugScreenText(szText, x, y, 0.2, color)
 }
 
+const PLAYERS = new Map();
+class class_player
+{
+	player;
+	player_controller;
+	player_slot;
+	player_name;
 
+	constructor(_player, _player_controller, _player_slot, _player_name)
+	{
+		this.player = _player;
+		this.player_controller = _player_controller;
+		this.player_slot = _player_slot;
+		this.player_name = _player_name;
+	}
+}
 
 class class_npc_base
 {
@@ -815,11 +830,8 @@ class class_npc_base
 							"dead",]
 		const iValue = GetRandomInt(0, szDeath.length-1);
 
-
 		this.SetAnimation(szDeath[iValue]);
 		this.SetDefaultAnimation(szDeath[iValue], 0.00, false);
-		// Instance.EntFireAtTarget({target: this.lModel, input: "SetAnimation", value: szDeath[iValue]})
-		// Instance.EntFireAtTarget({target: this.lModel, input: "SetDefaultAnimationNotLooping", value: szDeath[iValue]})
 		
 		return undefined;
 	}
@@ -842,7 +854,6 @@ class class_npc_base
 	{
 		if (bLoop)
 		{
-			Instance.Msg(`${this.lModel.GetEntityName()} "SetIdleAnimationLooping" ${szName} ${fDelay}`)
 			Instance.EntFireAtTarget({target: this.lModel, input: "SetIdleAnimationLooping", value: szName, delay: fDelay});
 		}
 		else
@@ -969,25 +980,40 @@ function RemoveNPC(szNamePref)
 	}
 }
 
-Instance.OnScriptInput("Test", (Activator_Caller_Data) => {
-	const activator = Activator_Caller_Data.activator
-	const conntroller_player = activator.GetPlayerController()
-	const pawn_player = conntroller_player.GetPlayerPawn()
+Instance.OnPlayerResest((hEvent) => {
+	const player = hEvent.player;
+	if (!player?.IsValid())
+	{
+		return;
+	}
 
-	Instance.Msg(activator + ' ' + conntroller_player.GetPlayerName())
-	const knife = activator.FindWeaponBySlot(2);
-	pawn_player.SwitchToWeapon(knife)
+	const player_controller = player.GetPlayerController();
+	const player_name = player_controller?.GetPlayerName();
+	const player_slot = player_controller?.GetPlayerSlot();
 
+	if (!PLAYERS.has(player_slot))
+	{
+		PLAYERS.set(player_slot, new class_player(player, player_controller, player_slot, player_name));
+		return;
+	}
+
+	const player_class = PLAYERS.get(player_slot);
+	player_class.player = player;
+	player_class.player_controller = player_controller;
+	player_class.player_slot = player_slot;
+	player_class.player_name = player_name;
 })
 
-Instance.OnScriptInput("Rotate", (Activator_Caller_Data) => {
-	for (const NPC of NPC_LIST)
+Instance.OnScriptInput("Tes", (Activator_Caller_Data) => {
+	Instance.Msg("1231t")
+	for (let i = 0; i < PLAYERS.length; i++)
 	{
-		NPC.Tick_Movement()
+		Instance.Msg(`${i+1})${PLAYERS[i]}`)
 	}
 })
 
 Instance.OnScriptInput("Input_Connect_NPC_00", (Activator_Caller_Data) => {
+	Instance.Msg("123");
 	let szNamePref = Activator_Caller_Data.caller.GetEntityName().replace("npc_00_connect_relay", "")
 
 	let lMover = Instance.FindEntityByName("npc_00_phys" + szNamePref)
@@ -1021,12 +1047,12 @@ Instance.OnScriptInput("Input_Connect_NPC_00", (Activator_Caller_Data) => {
 
 function Input_Damage_NPC(aData)
 {
-	let CLASS_NPC = GetNPCClassByPhysBox(aData.caller);
-	if (CLASS_NPC == null)
+	let class_NPC = GetNPCClassByPhysBox(aData.caller);
+	if (class_NPC == null)
 	{
 		return
 	}
-	CLASS_NPC.DamageBullet(aData)
+	class_NPC.DamageBullet(aData)
 }
 
 function GetNPCClassByPhysBox(Phys)
@@ -1072,6 +1098,5 @@ function GetRandomInt(min, max)
 {
     min = Math.ceil(min);
     max = Math.floor(max);
-	Instance.Msg(`${min} + ${max}`)
     return Math.floor(Math.random() * (max - min + 1)) + min;
 }
