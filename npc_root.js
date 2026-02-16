@@ -514,7 +514,6 @@ const NPC_ANIM_STATUS = {
 	MOVE: 1,
 	ATTACK: 2,
 	IDLE: 3,
-	DEATH: 4,
 }
 
 Instance.OnRoundStart(() => {
@@ -654,6 +653,10 @@ class class_npc_base
 	bHasHead;
 
 	lTarget;
+	lLastTarget;
+	fTargetTime;
+	fRetargetTime = 15;
+	fDistanceSetTarget = 1500;
 
 	lLastDamager;
 	Ticking;
@@ -676,16 +679,18 @@ class class_npc_base
 		this.iNPCStatus = NPC_ANIM_STATUS.NONE;
 
 		this.lTarget = null;
+		this.lLastTarget = null;
+		this.fTargetTime = 0.0;
 		this.lLastDamager = null;
 
-		const PLAYERS = Instance.FindEntitiesByClass("player");
+		// const PLAYERS = Instance.FindEntitiesByClass("player");
 
-		if (PLAYERS.length > 0)
-		{
-			this.lTarget = PLAYERS[1];
-			this.lTarget.SetMaxHealth(900);
-			this.lTarget.SetHealth(900);
-		}
+		// if (PLAYERS.length > 0)
+		// {
+		// 	this.lTarget = PLAYERS[1];
+		// 	this.lTarget.SetMaxHealth(900);
+		// 	this.lTarget.SetHealth(900);
+		// }
 
 		this.Ticking = setInterval(() => {
 			if (CLEAR_ALL_INTERVAL) {
@@ -702,10 +707,97 @@ class class_npc_base
 		{
 			return
 		}
-	
+
+		this.Tick_Target();
 		this.Tick_Attack();
 		this.Tick_Movement();
 		this.Tick_Anim();
+	}
+
+	Tick_Target()
+	{
+		if (this.iNPCStatus == NPC_ANIM_STATUS.ATTACK &&
+		Instance.GetGameTime() < this.fTargetTime &&
+		this.TargetValid()
+		)
+		{
+			return;
+		}
+
+		const me_Origin = this.lMover.GetAbsOrigin()
+		const NPCSearchFunction = function (player){
+			if (!IsValidAliveCT(player))
+			{
+				return false;
+			}
+
+			const target_Origin = GetPlayerAbsOriginCenter(player)
+			const fDistance = Vector3Utils.distance(me_Origin, target_Origin);
+
+			if (fDistance > this.fDistanceSetTarget)
+			{
+				return false;
+			}
+
+			const trace_ignore = Instance.FindEntitiesByClass("func*");
+			const trace = TraceLine(me_Origin, target_Origin, trace_ignore);
+			if (!trace.didHit)
+			{
+				Instance.DebugLine({start: me_Origin, end: target_Origin.end, duration: 1.00, color: {r: 255, g: 0, b: 0} });
+				return false;
+			}
+			else
+			{
+				Instance.DebugLine({start: me_Origin, end: target_Origin.end, duration: 1.00, color: {r: 0, g: 255, b: 0} });
+			}
+
+			return true;
+		}
+
+		let aTargets = Instance.FindEntitiesByClass("player").filter(player => NPCSearchFunction(player));
+		if (aTargets.length == 0)
+		{
+			this.SetTarget(null);
+			return;
+		}
+		
+		aTargets = aTargets.sort( function (a, b) {
+			const a_Origin = a.GetAbsOrigin();
+			const distance_a = Vector3Utils.distance(me_Origin, a_Origin);
+
+			const b_Origin = b.GetAbsOrigin();
+			const distance_b = Vector3Utils.distance(me_Origin, b_Origin);
+
+			if (distance_a < distance_b)
+			{
+				return -1;
+			}
+		
+			if (distance_a > distance_b)
+			{
+				return 1;
+			}
+		
+			return 0
+		})
+
+		//Отпускаем игрока если он уже был таргетом у этого зомбу
+		if (aTargets.length > 1)
+		{
+			if (aTargets[0] == this.lLastTarget)
+			{
+				aTargets[0] = aTargets[1];
+			}
+		}
+
+		this.SetTarget(aTargets[0]);
+	}
+
+	SetTarget(lTarget)
+	{
+		this.lLastTarget = this.lTarget;
+		this.lTarget = lTarget;
+		this.fTargetTime = Instance.GetGameTime() + this.fRetargetTime;
 	}
 
 	Tick_Attack()
@@ -1184,6 +1276,16 @@ function IsValidPlayer(player)
 function GetValidPlayers() 
 {
 	return Instance.FindEntitiesByClass("player").filter(p => IsValidPlayer(p));
+}
+
+function GetPlayerAbsOriginCenter(player)
+{
+	return Vector3Utils.add(player.GetAbsOrigin(), new Vec3(0, 0, 32));
+}
+
+function TraceLine(vec1, vec2, ignore)
+{
+	return Instance.TraceLine({start: vec1, end: vec2, ignoreEntity: ignore});
 }
 
 function GetRandomInt(min, max)
