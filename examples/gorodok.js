@@ -605,7 +605,6 @@ Instance.OnScriptInput("BarrelExplode", ({ caller, activator }) => {
 
         Instance.DebugLine({ start: explosion_pos, end: traceResult.end, duration: 10.00, color: {r: 255, g: 0, b: 0} });
 
-
         if(traceResult.didHit) 
         {
             const hit = traceResult.hitEntity;

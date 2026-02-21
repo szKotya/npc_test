@@ -558,8 +558,7 @@ function Tick_Text()
 	{
 		for (const NPC of NPC_LIST)
 		{
-			let ang = NPC.lMover.GetAbsAngles()
-			szText += `${NPC.szNamePref}: ${ang.pitch}/${ang.yaw}/${ang.roll}\n`
+			szText += `${NPC.szNamePref}: ${NPC.DebugMsg}\n`
 		}
 	}
 	else
@@ -655,8 +654,9 @@ class class_npc_base
 	lTarget;
 	lLastTarget;
 	fTargetTime;
-	fRetargetTime = 15;
+	fRetargetTime = 4;
 	fDistanceSetTarget = 1500;
+	iDamageGrab = 1
 
 	lLastDamager;
 	Ticking;
@@ -664,6 +664,8 @@ class class_npc_base
 
 	iNPCStatus;
 	fLastAttack;
+
+	DebugMsg = '';
 
 	constructor(_szNamePref)
 	{
@@ -716,45 +718,57 @@ class class_npc_base
 
 	Tick_Target()
 	{
-		if (this.iNPCStatus == NPC_ANIM_STATUS.ATTACK &&
-		Instance.GetGameTime() < this.fTargetTime &&
-		this.TargetValid()
-		)
+		if (this.iNPCStatus == NPC_ANIM_STATUS.ATTACK ||
+		(Instance.GetGameTime() < this.fTargetTime &&
+		this.TargetValid()))
 		{
 			return;
 		}
 
 		const me_Origin = this.lMover.GetAbsOrigin()
+		const fDistanceSetTarget = this.fDistanceSetTarget;
+		let DebugMsg = 0;
 		const NPCSearchFunction = function (player){
+			const target_Origin = GetPlayerAbsOriginCenter(player)
+			DebugMsg = 'y';
 			if (!IsValidAliveCT(player))
 			{
+				DebugMsg = 'x !IsValidAliveCT(player)';
 				return false;
 			}
-
-			const target_Origin = GetPlayerAbsOriginCenter(player)
+		
+			DebugMsg = '1';
 			const fDistance = Vector3Utils.distance(me_Origin, target_Origin);
 
-			if (fDistance > this.fDistanceSetTarget)
+			if (fDistance > fDistanceSetTarget)
 			{
+				DebugMsg = 'fDistance > fDistanceSetTarget'
 				return false;
 			}
 
-			const trace_ignore = Instance.FindEntitiesByClass("func*");
-			const trace = TraceLine(me_Origin, target_Origin, trace_ignore);
-			if (!trace.didHit)
+			DebugMsg = '2'
+			
+			const trace_ignore = []
+			const aPhys00 = Instance.FindEntitiesByClass("prop_physics_multiplayer*");
+			const aPhys01 = Instance.FindEntitiesByClass("func*");
+			for (const ent of aPhys00) {trace_ignore.push(ent)}
+			for (const ent of aPhys01) {trace_ignore.push(ent)}
+			const trace = TraceLine(me_Origin, target_Origin, trace_ignore, true);
+	
+			if (trace.didHit &&
+				trace.hitEntity != player)
 			{
-				Instance.DebugLine({start: me_Origin, end: target_Origin.end, duration: 1.00, color: {r: 255, g: 0, b: 0} });
+				DebugMsg = 'trace.didHit' + trace.didHit + ' ' + trace.hitEntity.GetClassName() + ' ' + trace.hitEntity.GetEntityName()
+				Instance.DebugLine({start: me_Origin, end: trace.end, duration: 1.00, color: {r: 255, g: 0, b: 0}});
 				return false;
 			}
-			else
-			{
-				Instance.DebugLine({start: me_Origin, end: target_Origin.end, duration: 1.00, color: {r: 0, g: 255, b: 0} });
-			}
 
+			Instance.DebugLine({start: me_Origin, end: trace.end, duration: 1.00, color: {r: 0, g: 255, b: 0}});
+			DebugMsg = 'FINE';
 			return true;
 		}
-
-		let aTargets = Instance.FindEntitiesByClass("player").filter(player => NPCSearchFunction(player));
+		let aTargets = Instance.FindEntitiesByClass("player").filter(player => NPCSearchFunction(player, this));
+		this.DebugMsg = DebugMsg
 		if (aTargets.length == 0)
 		{
 			this.SetTarget(null);
@@ -854,7 +868,7 @@ class class_npc_base
 				return;
 			}
 
-			let iHP = lTarget.GetHealth() - 15;
+			let iHP = lTarget.GetHealth() - this.iDamageGrab;
 			Instance.EntFireAtTarget({target: lTarget, input: "SetHealth", value: iHP });
 			fDelay -= fTickrate;
 
@@ -1167,7 +1181,6 @@ Instance.OnScriptInput("Tes", (Activator_Caller_Data) => {
 	{
 		return;
 	}
-	Instance.Msg("123 " + player_class.player_name);
 })
 
 Instance.OnScriptInput("Input_Connect_NPC_00", (Activator_Caller_Data) => {
@@ -1283,9 +1296,9 @@ function GetPlayerAbsOriginCenter(player)
 	return Vector3Utils.add(player.GetAbsOrigin(), new Vec3(0, 0, 32));
 }
 
-function TraceLine(vec1, vec2, ignore)
+function TraceLine(vec1, vec2, ignore, bignoreplayer = false)
 {
-	return Instance.TraceLine({start: vec1, end: vec2, ignoreEntity: ignore});
+	return Instance.TraceLine({start: vec1, end: vec2, ignoreEntity: ignore, ignorePlayers: bignoreplayer});
 }
 
 function GetRandomInt(min, max)
