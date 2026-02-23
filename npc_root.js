@@ -633,7 +633,56 @@ class class_player
 	}
 }
 
-class class_npc_base
+class class_npc_zombie_woman extends class_npc_zombie
+{
+	constructor(_szNamePref)
+	{
+		super(_szNamePref);
+	}
+
+	PostSpawn()
+	{
+		Instance.Msg('fgf')
+		this.iHP_Base = 10;
+		this.iHP_Head = 5;
+		this.fSpeed = 80;
+		this.lModel.SetModel("models/zombie/woman/woman.vmdl");
+	}
+}
+class class_npc_zombie_fat extends class_npc_zombie
+{
+	constructor(_szNamePref)
+	{
+		super(_szNamePref);
+	}
+
+	PostSpawn()
+	{
+		Instance.Msg('asd')
+		this.iHP_Base = 40;
+		this.iHP_Head = 25;
+		this.fSpeed = 35;
+		this.lModel.SetModel("models/zombie/woman/gooberman.vmdl");
+	}
+}
+class class_npc_zombie_policeman extends class_npc_zombie
+{
+	constructor(_szNamePref)
+	{
+		super(_szNamePref);
+	}
+
+	PostSpawn()
+	{
+		Instance.Msg('yui')
+		this.iHP_Base = 20;
+		this.iHP_Head = 10;
+		this.fSpeed = 60;
+		this.lModel.SetModel("models/zombie/woman/policeman.vmdl");
+	}
+}
+
+class class_npc_zombie
 {
 	szNamePref;
 
@@ -658,6 +707,10 @@ class class_npc_base
 	fDistanceSetTarget = 1500;
 	iDamageGrab = 1
 
+	iHP_Base = 5;
+	iHP_Head = 2;
+	fSpeed = 80.0;
+
 	lLastDamager;
 	Ticking;
 	Death;
@@ -667,8 +720,10 @@ class class_npc_base
 
 	DebugMsg = '';
 
+	
 	constructor(_szNamePref)
 	{
+		Instance.Msg('wer')
 		this.szNamePref = _szNamePref;
 		this.fLastAttack = 0.0;
 
@@ -685,15 +740,6 @@ class class_npc_base
 		this.fTargetTime = 0.0;
 		this.lLastDamager = null;
 
-		// const PLAYERS = Instance.FindEntitiesByClass("player");
-
-		// if (PLAYERS.length > 0)
-		// {
-		// 	this.lTarget = PLAYERS[1];
-		// 	this.lTarget.SetMaxHealth(900);
-		// 	this.lTarget.SetHealth(900);
-		// }
-
 		this.Ticking = setInterval(() => {
 			if (CLEAR_ALL_INTERVAL) {
 				clearInterval(this.Ticking);
@@ -701,6 +747,11 @@ class class_npc_base
 			}
 			this.Tick();
 		}, 0.02 * 1000);
+	}
+
+	PostSpawn()
+	{
+		Instance.Msg('123')
 	}
 
 	Tick()
@@ -829,7 +880,7 @@ class class_npc_base
 		let fDistance = Vector3Utils.distance(me_Origin, target_Origin)
 		if (fDistance > 20)
 		{
-			return
+			return;
 		}
 
 		this.iNPCStatus = NPC_ANIM_STATUS.ATTACK;
@@ -912,7 +963,7 @@ class class_npc_base
 		let vVelocity = {x: 0, y: 0, z: 0}
 		if (fDistance > fDistance_Limit)
 		{
-			let fSpeed = 80.0;
+			let fSpeed = this.fSpeed;
 			let fLimit = 250.0;
 			
 			let me_Velocity = this.lMover.GetAbsVelocity();
@@ -1193,7 +1244,7 @@ Instance.OnScriptInput("Input_Connect_NPC_00", (Activator_Caller_Data) => {
 	let lModel = Instance.FindEntityByName("npc_00_model" + szNamePref)
 	let lKeep = Instance.FindEntityByName("npc_00_keep" + szNamePref)
 
-	let NPC = new class_npc_base(szNamePref);
+	let NPC = new class_npc_zombie(szNamePref);
 
 	NPC.lMover = lMover;
 	NPC.lKeep = lKeep;
@@ -1203,15 +1254,15 @@ Instance.OnScriptInput("Input_Connect_NPC_00", (Activator_Caller_Data) => {
 	NPC.aHitbox_Base.push(lHitBox_Base)
 	NPC.aHitbox_Head.push(lHitBox_Head)
 
-	NPC.iHP_Base = 10;
-	NPC.iHP_Head = 2;
-
 	Instance.ConnectOutput(lHitBox_Base, "OnHealthChanged", (Activator_Caller_Data) => {
 		Input_Damage_NPC(Activator_Caller_Data);
 	});
 	Instance.ConnectOutput(lHitBox_Head, "OnHealthChanged", (Activator_Caller_Data) => {
 		Input_Damage_NPC(Activator_Caller_Data);
 	});
+
+	NPC.PostSpawn();
+
 	NPC_LIST.push(NPC);
 })
 
