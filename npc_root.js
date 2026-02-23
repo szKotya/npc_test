@@ -633,55 +633,6 @@ class class_player
 	}
 }
 
-class class_npc_zombie_woman extends class_npc_zombie
-{
-	constructor(_szNamePref)
-	{
-		super(_szNamePref);
-	}
-
-	PostSpawn()
-	{
-		Instance.Msg('fgf')
-		this.iHP_Base = 10;
-		this.iHP_Head = 5;
-		this.fSpeed = 80;
-		this.lModel.SetModel("models/zombie/woman/woman.vmdl");
-	}
-}
-class class_npc_zombie_fat extends class_npc_zombie
-{
-	constructor(_szNamePref)
-	{
-		super(_szNamePref);
-	}
-
-	PostSpawn()
-	{
-		Instance.Msg('asd')
-		this.iHP_Base = 40;
-		this.iHP_Head = 25;
-		this.fSpeed = 35;
-		this.lModel.SetModel("models/zombie/woman/gooberman.vmdl");
-	}
-}
-class class_npc_zombie_policeman extends class_npc_zombie
-{
-	constructor(_szNamePref)
-	{
-		super(_szNamePref);
-	}
-
-	PostSpawn()
-	{
-		Instance.Msg('yui')
-		this.iHP_Base = 20;
-		this.iHP_Head = 10;
-		this.fSpeed = 60;
-		this.lModel.SetModel("models/zombie/woman/policeman.vmdl");
-	}
-}
-
 class class_npc_zombie
 {
 	szNamePref;
@@ -697,6 +648,7 @@ class class_npc_zombie
 
 	lModel;
 	szBodyGroupHeadBreak;
+	szBodyGroupHead;
 
 	bHasHead;
 
@@ -709,7 +661,7 @@ class class_npc_zombie
 
 	iHP_Base = 5;
 	iHP_Head = 2;
-	fSpeed = 80.0;
+	fSpeed = 250.0;
 
 	lLastDamager;
 	Ticking;
@@ -963,8 +915,8 @@ class class_npc_zombie
 		let vVelocity = {x: 0, y: 0, z: 0}
 		if (fDistance > fDistance_Limit)
 		{
-			let fSpeed = this.fSpeed;
-			let fLimit = 250.0;
+			let fSpeed = 80;
+			let fLimit = this.fSpeed;
 			
 			let me_Velocity = this.lMover.GetAbsVelocity();
 			vVelocity = Vector3Utils.add(me_Velocity, (Vector3Utils.scale(EulerUtils.forward(target_Angles), fSpeed)))
@@ -1174,6 +1126,61 @@ class class_npc_zombie
 	}
 }
 
+
+class class_npc_zombie_woman extends class_npc_zombie
+{
+	constructor(_szNamePref)
+	{
+		super(_szNamePref);
+	}
+
+	PostSpawn()
+	{
+		Instance.Msg('fgf')
+		this.iHP_Base = 10;
+		this.iHP_Head = 3;
+		this.fSpeed = 250;
+		this.lModel.SetModel("models/zombie/woman/woman.vmdl");
+		
+		Instance.EntFireAtTarget({target: this.lModel, input: "SetBodyGroup", value: this.szBodyGroupHead})
+	}
+}
+class class_npc_zombie_fat extends class_npc_zombie
+{
+	constructor(_szNamePref)
+	{
+		super(_szNamePref);
+	}
+
+	PostSpawn()
+	{
+		Instance.Msg('asd')
+		this.iHP_Base = 40;
+		this.iHP_Head = 10;
+		this.fSpeed = 150;
+		this.lModel.SetModel("models/zombie/woman/gooberman.vmdl");
+		Instance.EntFireAtTarget({target: this.lModel, input: "SetBodyGroup", value: this.szBodyGroupHead})
+	}
+}
+class class_npc_zombie_policeman extends class_npc_zombie
+{
+	constructor(_szNamePref)
+	{
+		super(_szNamePref);
+	}
+
+	PostSpawn()
+	{
+		Instance.Msg('yui')
+		this.iHP_Base = 20;
+		this.iHP_Head = 7;
+		this.fSpeed = 225;
+		this.lModel.SetModel("models/zombie/woman/policeman.vmdl");
+		Instance.EntFireAtTarget({target: this.lModel, input: "SetBodyGroup", value: this.szBodyGroupHead})
+	}
+}
+
+
 function SpawnNPC(vec)
 {
 	Instance.Msg("SpawnNPC")
@@ -1235,6 +1242,7 @@ Instance.OnScriptInput("Tes", (Activator_Caller_Data) => {
 })
 
 Instance.OnScriptInput("Input_Connect_NPC_00", (Activator_Caller_Data) => {
+	Instance.Msg("zxcasd")
 	let szNamePref = Activator_Caller_Data.caller.GetEntityName().replace("npc_00_connect_relay", "")
 
 	let lMover = Instance.FindEntityByName("npc_00_phys" + szNamePref)
@@ -1244,12 +1252,13 @@ Instance.OnScriptInput("Input_Connect_NPC_00", (Activator_Caller_Data) => {
 	let lModel = Instance.FindEntityByName("npc_00_model" + szNamePref)
 	let lKeep = Instance.FindEntityByName("npc_00_keep" + szNamePref)
 
-	let NPC = new class_npc_zombie(szNamePref);
+	let NPC = new class_npc_zombie_woman(szNamePref);
 
 	NPC.lMover = lMover;
 	NPC.lKeep = lKeep;
 	NPC.lModel = lModel
 	NPC.szBodyGroupHeadBreak = "normal, 0"
+	NPC.szBodyGroupHead = "normal, 1"
 
 	NPC.aHitbox_Base.push(lHitBox_Base)
 	NPC.aHitbox_Head.push(lHitBox_Head)
