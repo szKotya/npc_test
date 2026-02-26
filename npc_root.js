@@ -656,16 +656,19 @@ class class_npc_zombie
 	lLastTarget;
 	fTargetTime;
 	fRetargetTime = 4;
-	fDistanceSetTarget = 1500;
+	// fDistanceSetTarget = 1500;
+	fDistanceSetTarget = 350;
 	iDamageGrab = 1
 
+	fLifeWithoutHead = 5.0
 	iHP_Base = 5;
 	iHP_Head = 2;
 	fSpeed = 250.0;
 
 	lLastDamager;
 	Ticking;
-	Death;
+	bDeath;
+	bStun
 
 	iNPCStatus;
 	fLastAttack;
@@ -684,10 +687,10 @@ class class_npc_zombie
 
 		this.szBodyGroupHeadBreak = null;
 		this.bHasHead = true;
-		this.Death = false;
+		this.bDeath = false;
 		this.iNPCStatus = NPC_ANIM_STATUS.NONE;
 
-		this.lTarget = null;
+		this.SetTarget(null);
 		this.lLastTarget = null;
 		this.fTargetTime = 0.0;
 		this.lLastDamager = null;
@@ -708,7 +711,7 @@ class class_npc_zombie
 
 	Tick()
 	{
-		if (this.Death)
+		if (this.bDeath)
 		{
 			return
 		}
@@ -854,11 +857,16 @@ class class_npc_zombie
 			if (CLEAR_ALL_INTERVAL ||
 			fDelay <= 0.0 ||
 			!this.TargetValid(lTarget) ||
-			this.Death)
+			this.bDeath ||
+			this.bStun)
 			{
 				clearInterval(TimerAlpha);
-				this.iNPCStatus = NPC_ANIM_STATUS.NONE;
-				this.fLastAttack = Instance.GetGameTime() + 1.0;
+				if (!this.bStun)
+				{
+					this.iNPCStatus = NPC_ANIM_STATUS.NONE;
+					this.fLastAttack = Instance.GetGameTime() + 1.0;
+				}
+				
 				if (IsValidPlayer(lTarget))
 				{
 					const player_class_new = GetPlayerClassByPlayer(lTarget);
@@ -880,16 +888,37 @@ class class_npc_zombie
 
 	Tick_Anim()
 	{
-		if (this.iNPCStatus != NPC_ANIM_STATUS.NONE)
+		if (this.iNPCStatus == NPC_ANIM_STATUS.ATTACK)
 		{
 			return;
 		}
-		const szMove = ["walk1", "move"]
-		const iValue = GetRandomInt(0, szMove.length-1);
 
-		this.iNPCStatus = NPC_ANIM_STATUS.MOVE;
-		this.SetAnimation(szMove[iValue], 0.0, 1.0, true);
-	
+
+
+		if (this.TargetValid()) //Move
+		{
+			if (this.iNPCStatus != NPC_ANIM_STATUS.MOVE)
+			{
+				const szMove = ["walk1", "move"]
+				const iValue = GetRandomInt(0, szMove.length-1);
+
+				this.iNPCStatus = NPC_ANIM_STATUS.MOVE;
+				this.SetAnimation(szMove[iValue], 0.0, 1.0, true);
+			}
+
+		}
+		else //Idle
+		{
+
+			if (this.iNPCStatus != NPC_ANIM_STATUS.IDLE)
+			{
+				const szMove = ["idle5", "idl2", "idle3", "idle4", "idle"]
+				const iValue = GetRandomInt(0, szMove.length-1);
+
+				this.iNPCStatus = NPC_ANIM_STATUS.IDLE;
+				this.SetAnimation(szMove[iValue], 0.0, 1.0, true);
+			}
+		}
 	}
 
 	Tick_Movement()
@@ -941,7 +970,7 @@ class class_npc_zombie
 	{
 		if (!IsValidAliveCT(this.lTarget))
 		{
-			this.lTarget = null;
+			this.SetTarget(null);
 			return false;
 		}
 
@@ -1032,7 +1061,7 @@ class class_npc_zombie
 	{
 		clearTimeout(this.Ticking)
 		RemoveNPC(this.szNamePref)
-		this.Death = true;
+		this.bDeath = true;
 
 		for (const Hitbox of this.aHitbox_Base)
 		{
@@ -1054,7 +1083,7 @@ class class_npc_zombie
 
 	Kill()
 	{
-		if (this.Death)
+		if (this.bDeath)
 		{
 			return
 		}
@@ -1064,7 +1093,7 @@ class class_npc_zombie
 
 	KillFade()
 	{
-		if (this.Death)
+		if (this.bDeath)
 		{
 			return
 		}
@@ -1111,10 +1140,26 @@ class class_npc_zombie
 		{
 			Instance.EntFireAtTarget({target: this.lModel, input: "SetBodyGroup", value: this.szBodyGroupHeadBreak})
 		}
+		this.SetAnimation("headshoot");
+		
 		this.aHitbox_Head = []
 
 		this.bHasHead = false;
-		const lLastDamager = this.lLastDamager 
+		this.bStun = true;
+		this.iNPCStatus = NPC_ANIM_STATUS.ATTACK;
+
+		const lLastDamager = this.lLastDamager;
+
+		const DelayStun = setTimeout(() => {
+			if (CLEAR_ALL_INTERVAL) {
+				clearInterval(DelayStun);
+				return;
+			}
+			this.bStun = false;
+			this.iNPCStatus = NPC_ANIM_STATUS.NONE;
+			this.fLastAttack = Instance.GetGameTime() + 1.0;
+			
+		}, 1750);
 		
 		const DelayDeath = setTimeout(() => {
 			if (CLEAR_ALL_INTERVAL) {
@@ -1122,7 +1167,7 @@ class class_npc_zombie
 				return;
 			}
 			this.HP_Checks(false, -1, lHead, lLastDamager)
-		}, 3000);
+		}, this.fLifeWithoutHead * 1000);
 	}
 }
 
@@ -1256,12 +1301,12 @@ Instance.OnScriptInput("Input_Connect_NPC_00", (Activator_Caller_Data) => {
 
 	NPC.lMover = lMover;
 	NPC.lKeep = lKeep;
-	NPC.lModel = lModel
-	NPC.szBodyGroupHeadBreak = "normal, 0"
-	NPC.szBodyGroupHead = "normal, 1"
+	NPC.lModel = lModel;
+	NPC.szBodyGroupHeadBreak = "normal, 0";
+	NPC.szBodyGroupHead = "normal, 1";
 
-	NPC.aHitbox_Base.push(lHitBox_Base)
-	NPC.aHitbox_Head.push(lHitBox_Head)
+	NPC.aHitbox_Base.push(lHitBox_Base);
+	NPC.aHitbox_Head.push(lHitBox_Head);
 
 	Instance.ConnectOutput(lHitBox_Base, "OnHealthChanged", (Activator_Caller_Data) => {
 		Input_Damage_NPC(Activator_Caller_Data);
@@ -1280,7 +1325,7 @@ function Input_Damage_NPC(aData)
 	let class_NPC = GetNPCClassByPhysBox(aData.caller);
 	if (class_NPC == null)
 	{
-		return
+		return;
 	}
 	class_NPC.DamageBullet(aData)
 }
