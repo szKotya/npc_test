@@ -664,6 +664,7 @@ class class_npc_zombie
 	iHP_Base = 5;
 	iHP_Head = 2;
 	fSpeed = 250.0;
+	fChargeSpeed = 350.0;
 
 	lLastDamager;
 	Ticking;
@@ -672,21 +673,24 @@ class class_npc_zombie
 
 	iNPCStatus;
 	fLastAttack;
+	fLastCharge;
+	bCharge;
 
 	DebugMsg = '';
 
 	
 	constructor(_szNamePref)
 	{
-		Instance.Msg('wer')
 		this.szNamePref = _szNamePref;
 		this.fLastAttack = 0.0;
+		this.fLastCharge = 0.0;
 
 		this.aHitbox_Base = [];
 		this.aHitbox_Head = [];
 
 		this.szBodyGroupHeadBreak = null;
 		this.bHasHead = true;
+		this.bCharge = false;
 		this.bDeath = false;
 		this.iNPCStatus = NPC_ANIM_STATUS.NONE;
 
@@ -824,6 +828,7 @@ class class_npc_zombie
 	{
 		if (!this.TargetValid() ||
 		(this.fLastAttack > Instance.GetGameTime()) ||
+		this.bCharge ||
 		(this.iNPCStatus != NPC_ANIM_STATUS.NONE && this.iNPCStatus != NPC_ANIM_STATUS.MOVE))
 		{
 			return;
@@ -833,11 +838,89 @@ class class_npc_zombie
 		let target_Origin = this.lTarget.GetAbsOrigin()
 
 		let fDistance = Vector3Utils.distance(me_Origin, target_Origin)
-		if (fDistance > 20)
+		if (fDistance <= 20)
 		{
+			this.Tick_Attack_Grab()
 			return;
 		}
 
+		if (this.fLastCharge <= Instance.GetGameTime() &&
+		fDistance <= 150)
+		{
+			this.Tick_Attack_Charge()
+			return;
+		}	
+	}
+
+	Tick_Attack_Charge()
+	{
+		Instance.Msg('CHARGE NOW')
+		this.fLastCharge = Instance.GetGameTime() + 1.0;
+		this.iNPCStatus = NPC_ANIM_STATUS.ATTACK;
+		this.bCharge = true;
+
+		this.SetAnimation("closehuman", 0.0, 1.0, true);		
+		const lTarget = this.lTarget;
+		const fTickrate = 0.25;
+		let fDelay = 1.25;
+
+		const TimerCharge = setInterval(() => {
+			if (CLEAR_ALL_INTERVAL ||
+			fDelay <= 0.0 ||
+			!this.TargetValid(lTarget) ||
+			this.bDeath ||
+			this.bStun ||
+			!this.bCharge)
+			{
+				clearInterval(TimerCharge);
+				this.bCharge = false;
+				
+				if (!CLEAR_ALL_INTERVAL)
+				{
+					const DelayStun = setTimeout(() => {
+					if (CLEAR_ALL_INTERVAL) {
+						clearInterval(DelayStun);
+						return;
+					}
+
+					this.iNPCStatus = NPC_ANIM_STATUS.NONE;
+					this.fLastAttack = Instance.GetGameTime() + 2.0;
+					if (this.bHasHead)
+					{
+						this.fLastCharge = Instance.GetGameTime() + 2.0;
+					}
+					else
+					{
+						this.fLastAttack = Instance.GetGameTime() + 9999.0;
+					}
+
+					}, 1500);
+				}
+
+				return;
+			}
+
+			let me_Origin = this.lMover.GetAbsOrigin()
+			let target_Origin = this.lTarget.GetAbsOrigin()
+
+			let fDistance = Vector3Utils.distance(me_Origin, target_Origin)
+
+			Instance.Msg(`fDistance ${fDistance}`)
+			if (fDistance <= 40)
+			{
+				clearInterval(TimerCharge);
+				this.bCharge = false;
+
+				this.Tick_Attack_Grab()
+				return;
+			}
+			fDelay -= fTickrate;
+
+		}, fTickrate * 1000);
+	}
+
+	Tick_Attack_Grab()
+	{
 		this.iNPCStatus = NPC_ANIM_STATUS.ATTACK;
 		this.SetAnimation("chaval1", 0.0, 1.0, true);
 
@@ -853,14 +936,14 @@ class class_npc_zombie
 			player_class.GrabZombieStart(szPref)
 		}
 
-		const TimerAlpha = setInterval(() => {
+		const TimerCharge = setInterval(() => {
 			if (CLEAR_ALL_INTERVAL ||
 			fDelay <= 0.0 ||
 			!this.TargetValid(lTarget) ||
 			this.bDeath ||
 			this.bStun)
 			{
-				clearInterval(TimerAlpha);
+				clearInterval(TimerCharge);
 				if (!this.bStun)
 				{
 					this.iNPCStatus = NPC_ANIM_STATUS.NONE;
@@ -923,11 +1006,17 @@ class class_npc_zombie
 
 	Tick_Movement()
 	{
-		if (!this.TargetValid() ||
+		if (!this.TargetValid())
+		{
+			return;
+		}
+
+		if (!this.bCharge &&
 		this.iNPCStatus != NPC_ANIM_STATUS.MOVE)
 		{
-			return
+			return;
 		}
+
 		let me_Origin = this.lMover.GetAbsOrigin()
 		let me_Angles = this.lMover.GetAbsAngles()
 		let target_Origin = this.lTarget.GetAbsOrigin()
@@ -936,7 +1025,7 @@ class class_npc_zombie
 		target_Angles.roll = 0
 		target_Angles.pitch = 0
 	
-		let Step = 10
+		let Step = 10;
 		let qAngles = EulerUtils.rotateTowards(me_Angles, target_Angles, Step)
 
 		let fDistance = Vector3Utils.distance(me_Origin, target_Origin)
@@ -944,8 +1033,13 @@ class class_npc_zombie
 		let vVelocity = {x: 0, y: 0, z: 0}
 		if (fDistance > fDistance_Limit)
 		{
-			let fSpeed = 80;
+			let fSpeed = 100;
 			let fLimit = this.fSpeed;
+			if (this.bCharge)
+			{
+				fLimit = this.fChargeSpeed;
+				Instance.Msg('Charge')
+			}
 			
 			let me_Velocity = this.lMover.GetAbsVelocity();
 			vVelocity = Vector3Utils.add(me_Velocity, (Vector3Utils.scale(EulerUtils.forward(target_Angles), fSpeed)))
@@ -1110,6 +1204,7 @@ class class_npc_zombie
 				clearInterval(DelayFade);
 				return;
 			}
+			
 			let iAlpha = 255
 			const TimerAlpha = setInterval(() => {
 
