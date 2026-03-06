@@ -508,7 +508,7 @@ Instance.Msg("Script Loaded!");
 let CLEAR_ALL_INTERVAL = false;
 
 let NPC_LIST = []
-
+let NPC_PRESET_TO_SPAWN = []
 const NPC_ANIM_STATUS = {
 	NONE: 0,
 	MOVE: 1,
@@ -516,9 +516,21 @@ const NPC_ANIM_STATUS = {
 	IDLE: 3,
 }
 
+const NPC_ZOMBIE_TYPE = {
+	WOMAN: 0,
+	FAT: 1,
+	POLICEMAN: 2,
+}
+
+const NPC_ZOMBIE_START_ANIM = {
+	STAND: 0,
+	CRAWLS: 1,
+}
+
 Instance.OnRoundStart(() => {
 	clearTasks();
 	NPC_LIST = []
+	NPC_PRESET_TO_SPAWN = []
 
 	Start_Ticks()
 });
@@ -679,6 +691,7 @@ class class_npc_zombie
 	DebugMsg = '';
 
 	
+	
 	constructor(_szNamePref)
 	{
 		this.szNamePref = _szNamePref;
@@ -706,6 +719,18 @@ class class_npc_zombie
 			}
 			this.Tick();
 		}, 0.02 * 1000);
+	}
+
+	StartAnim(Start_Anim)
+	{
+		if (Start_Anim == NPC_ZOMBIE_START_ANIM.STAND)
+		{
+
+		}
+		else if (Start_Anim == NPC_ZOMBIE_START_ANIM.CRAWLS) 
+		{
+
+		}
 	}
 
 	PostSpawn()
@@ -1276,12 +1301,10 @@ class class_npc_zombie_woman extends class_npc_zombie
 
 	PostSpawn()
 	{
-		Instance.Msg('fgf')
 		this.iHP_Base = 10;
 		this.iHP_Head = 3;
 		this.fSpeed = 250;
 		this.lModel.SetModel("models/zombie/woman/woman.vmdl");
-		
 		Instance.EntFireAtTarget({target: this.lModel, input: "SetBodyGroup", value: this.szBodyGroupHead})
 	}
 }
@@ -1294,7 +1317,6 @@ class class_npc_zombie_fat extends class_npc_zombie
 
 	PostSpawn()
 	{
-		Instance.Msg('asd')
 		this.iHP_Base = 40;
 		this.iHP_Head = 10;
 		this.fSpeed = 150;
@@ -1311,7 +1333,6 @@ class class_npc_zombie_policeman extends class_npc_zombie
 
 	PostSpawn()
 	{
-		Instance.Msg('yui')
 		this.iHP_Base = 20;
 		this.iHP_Head = 7;
 		this.fSpeed = 225;
@@ -1322,10 +1343,13 @@ class class_npc_zombie_policeman extends class_npc_zombie
 
 
 function SpawnNPC(vec)
-{
-	Instance.Msg("SpawnNPC")
+{	
+	kv = {origin: vec, type: NPC_ZOMBIE_TYPE.WOMAN, startanim: NPC_ZOMBIE_START_ANIM.STAND}
+
+	NPC_PRESET_TO_SPAWN.unshift(kv)
+
 	let Template = Instance.FindEntityByName("npc_00");
-	Template.ForceSpawn(vec);
+	Template.ForceSpawn(kv.origin);
 }
 
 function RemoveNPC(szNamePref)
@@ -1382,8 +1406,29 @@ Instance.OnScriptInput("Tes", (Activator_Caller_Data) => {
 })
 
 Instance.OnScriptInput("Input_Connect_NPC_00", (Activator_Caller_Data) => {
-	Instance.Msg("zxcasd")
+	let KV = NPC_PRESET_TO_SPAWN[0];
+	NPC_PRESET_TO_SPAWN.splice(0, 1);
+
 	let szNamePref = Activator_Caller_Data.caller.GetEntityName().replace("npc_00_connect_relay", "")
+
+	let NPC;
+	if (KV.type == NPC_ZOMBIE_TYPE.WOMAN)
+	{
+		NPC = new class_npc_zombie_woman(szNamePref);
+	}
+	else if (KV.type == NPC_ZOMBIE_TYPE.FAT)
+	{
+		NPC = new class_npc_zombie_fat(szNamePref);
+	}
+	else if (KV.type == NPC_ZOMBIE_TYPE.POLICEMAN)
+	{
+		NPC = new class_npc_zombie_policeman(szNamePref);
+	}
+
+	if (NPC == undefined)
+	{
+		return;
+	}
 
 	let lMover = Instance.FindEntityByName("npc_00_phys" + szNamePref)
 
@@ -1391,8 +1436,6 @@ Instance.OnScriptInput("Input_Connect_NPC_00", (Activator_Caller_Data) => {
 	let lHitBox_Head = Instance.FindEntityByName("npc_00_hitbox_b" + szNamePref)
 	let lModel = Instance.FindEntityByName("npc_00_model" + szNamePref)
 	let lKeep = Instance.FindEntityByName("npc_00_keep" + szNamePref)
-
-	let NPC = new class_npc_zombie_woman(szNamePref);
 
 	NPC.lMover = lMover;
 	NPC.lKeep = lKeep;
@@ -1409,6 +1452,11 @@ Instance.OnScriptInput("Input_Connect_NPC_00", (Activator_Caller_Data) => {
 	Instance.ConnectOutput(lHitBox_Head, "OnHealthChanged", (Activator_Caller_Data) => {
 		Input_Damage_NPC(Activator_Caller_Data);
 	});
+
+	if (KV.startanim != undefined)
+	{
+		NPC.StartAnim(KV.startanim)
+	}
 
 	NPC.PostSpawn();
 
