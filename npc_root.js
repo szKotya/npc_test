@@ -507,6 +507,8 @@ Instance.OnRoundEnd((stuff) => {
 Instance.Msg("Script Loaded!");
 let CLEAR_ALL_INTERVAL = false;
 
+
+let NPC_EFFECT_HEAD_BROKE;
 let NPC_LIST = []
 let NPC_PRESET_TO_SPAWN = []
 const NPC_ANIM_STATUS = {
@@ -548,8 +550,10 @@ function Start_Ticks()
 			}, 0.25 * 1000);
 
 	setTimeout(() => {
-		SpawnNPC(new Vec3(118, 272, 64));
-		
+		SpawnNPC({origin: new Vec3(118, 250, 64), type: NPC_ZOMBIE_TYPE.WOMAN, startanim: NPC_ZOMBIE_START_ANIM.STAND});
+		SpawnNPC({origin: new Vec3(-50, 272, 64), type: NPC_ZOMBIE_TYPE.WOMAN, startanim: NPC_ZOMBIE_START_ANIM.STAND});
+		SpawnNPC({origin: new Vec3(118, 300, 32), type: NPC_ZOMBIE_TYPE.FAT, startanim: NPC_ZOMBIE_START_ANIM.STAND});
+		SpawnNPC({origin: new Vec3(118, 200, 128), type: NPC_ZOMBIE_TYPE.POLICEMAN, startanim: NPC_ZOMBIE_START_ANIM.STAND});
 		const PLAYERS = Instance.FindEntitiesByClass("player");
 		for (const player of PLAYERS)
 		{
@@ -557,7 +561,7 @@ function Start_Ticks()
 		}
 		
 	}, 1500);
-
+	NPC_EFFECT_HEAD_BROKE = Instance.FindEntityByName("temp_effect_00");
 	Instance.EntFireAtName({name: "npc_00_*", input: "Kill"})
 }
 Start_Ticks()
@@ -570,6 +574,10 @@ function Tick_Text()
 	{
 		for (const NPC of NPC_LIST)
 		{
+			if (NPC.aHitbox_Base != undefined && NPC.aHitbox_Base[0].IsValid())
+			{
+				szText += `${NPC.iHP_Base} ${NPC.iHP_Head} `
+			}
 			szText += `${NPC.szNamePref}: ${NPC.DebugMsg}\n`
 		}
 	}
@@ -677,6 +685,9 @@ class class_npc_zombie
 	iHP_Head = 2;
 	fSpeed = 250.0;
 	fChargeSpeed = 350.0;
+	fChargeTriggerDistance = 150.0;
+	fAnimRateCharge = 1.0;
+	fAnimRateWalk = 1.0;
 
 	lLastDamager;
 	Ticking;
@@ -690,7 +701,6 @@ class class_npc_zombie
 
 	DebugMsg = '';
 
-	
 	
 	constructor(_szNamePref)
 	{
@@ -735,7 +745,7 @@ class class_npc_zombie
 
 	PostSpawn()
 	{
-		Instance.Msg('123')
+
 	}
 
 	Tick()
@@ -870,7 +880,7 @@ class class_npc_zombie
 		}
 
 		if (this.fLastCharge <= Instance.GetGameTime() &&
-		fDistance <= 150)
+		fDistance <= this.fChargeTriggerDistance)
 		{
 			this.Tick_Attack_Charge()
 			return;
@@ -879,15 +889,15 @@ class class_npc_zombie
 
 	Tick_Attack_Charge()
 	{
-		Instance.Msg('CHARGE NOW')
+		this.SetAnimation("closehuman", 0.0, this.fAnimRateCharge, true);	
+	
 		this.fLastCharge = Instance.GetGameTime() + 1.0;
 		this.iNPCStatus = NPC_ANIM_STATUS.ATTACK;
 		this.bCharge = true;
-
-		this.SetAnimation("closehuman", 0.0, 1.0, true);		
+		
 		const lTarget = this.lTarget;
-		const fTickrate = 0.25;
-		let fDelay = 1.25;
+		const fTickrate = ConvertTimeFromPlayBack(0.25, this.fAnimRateCharge);
+		let fDelay = ConvertTimeFromPlayBack(1.25, this.fAnimRateCharge);
 
 		const TimerCharge = setInterval(() => {
 			if (CLEAR_ALL_INTERVAL ||
@@ -930,7 +940,6 @@ class class_npc_zombie
 
 			let fDistance = Vector3Utils.distance(me_Origin, target_Origin)
 
-			Instance.Msg(`fDistance ${fDistance}`)
 			if (fDistance <= 40)
 			{
 				clearInterval(TimerCharge);
@@ -987,6 +996,8 @@ class class_npc_zombie
 				return;
 			}
 
+			NPC_EFFECT_HEAD_BROKE.ForceSpawn(GetPlayerAbsOriginCenter(lTarget));
+
 			let iHP = lTarget.GetHealth() - this.iDamageGrab;
 			Instance.EntFireAtTarget({target: lTarget, input: "SetHealth", value: iHP });
 			fDelay -= fTickrate;
@@ -1011,7 +1022,7 @@ class class_npc_zombie
 				const iValue = GetRandomInt(0, szMove.length-1);
 
 				this.iNPCStatus = NPC_ANIM_STATUS.MOVE;
-				this.SetAnimation(szMove[iValue], 0.0, 1.0, true);
+				this.SetAnimation(szMove[iValue], 0.0, this.fAnimRateWalk, true);
 			}
 
 		}
@@ -1063,7 +1074,6 @@ class class_npc_zombie
 			if (this.bCharge)
 			{
 				fLimit = this.fChargeSpeed;
-				Instance.Msg('Charge')
 			}
 			
 			let me_Velocity = this.lMover.GetAbsVelocity();
@@ -1121,7 +1131,7 @@ class class_npc_zombie
 		{
 			this.iHP_Head -= iDamage
 			
-			iDamage *= 2
+			iDamage *= 1.3
 
 			if (this.iHP_Head < 1)
 			{
@@ -1250,12 +1260,18 @@ class class_npc_zombie
 
 	BreakBase()
 	{
+		let vecHead = this.lModel.GetAbsOrigin();
+		NPC_EFFECT_HEAD_BROKE.ForceSpawn(vecHead);
+
 		this.KillFade()
 	}
 
 	BreakHead(lHead)
 	{
+		let vecHead = lHead.GetAbsOrigin();
+		NPC_EFFECT_HEAD_BROKE.ForceSpawn(vecHead);
 		Instance.EntFireAtTarget({target: lHead, input: "Kill"})
+
 		if (this.szBodyGroupHeadBreak != null)
 		{
 			Instance.EntFireAtTarget({target: this.lModel, input: "SetBodyGroup", value: this.szBodyGroupHeadBreak})
@@ -1294,6 +1310,15 @@ class class_npc_zombie
 
 class class_npc_zombie_woman extends class_npc_zombie
 {
+	fAnimRateWalk = 1.75;
+	fChargeSpeed = 250.0;
+	fChargeTriggerDistance = 100;
+	fAnimRateCharge = 0.8;
+	iDamageGrab = 5
+	iHP_Base = 50;
+	iHP_Head = 25;
+	fSpeed = 210;
+	iDamageGrab = 4;
 	constructor(_szNamePref)
 	{
 		super(_szNamePref);
@@ -1301,15 +1326,22 @@ class class_npc_zombie_woman extends class_npc_zombie
 
 	PostSpawn()
 	{
-		this.iHP_Base = 10;
-		this.iHP_Head = 3;
-		this.fSpeed = 250;
+		this.aHitbox_Head[0].SetEntityName("Amber_Laura_Heard_b_");
+		this.aHitbox_Base[0].SetEntityName("Amber_Laura_Heard")
 		this.lModel.SetModel("models/zombie/woman/woman.vmdl");
 		Instance.EntFireAtTarget({target: this.lModel, input: "SetBodyGroup", value: this.szBodyGroupHead})
 	}
 }
 class class_npc_zombie_fat extends class_npc_zombie
 {
+	fAnimRateWalk = 1.5;
+	fChargeSpeed = 350.0;
+	fChargeTriggerDistance = 250;
+	fAnimRateCharge = 1.2;
+	iHP_Base = 100;
+	iHP_Head = 50;
+	fSpeed = 125;
+	iDamageGrab = 7;
 	constructor(_szNamePref)
 	{
 		super(_szNamePref);
@@ -1317,15 +1349,22 @@ class class_npc_zombie_fat extends class_npc_zombie
 
 	PostSpawn()
 	{
-		this.iHP_Base = 40;
-		this.iHP_Head = 10;
-		this.fSpeed = 150;
+		this.aHitbox_Head[0].SetEntityName("George_Perry_Floyd_b_");
+		this.aHitbox_Base[0].SetEntityName("George_Perry_Floyd")
 		this.lModel.SetModel("models/zombie/woman/gooberman.vmdl");
 		Instance.EntFireAtTarget({target: this.lModel, input: "SetBodyGroup", value: this.szBodyGroupHead})
 	}
 }
 class class_npc_zombie_policeman extends class_npc_zombie
 {
+	fAnimRateWalk = 1.5;
+	fChargeSpeed = 300.0;
+	fChargeTriggerDistance = 200;
+	fAnimRateCharge = 0.9;
+	iHP_Base = 75;
+	iHP_Head = 35;
+	fSpeed = 165;
+	iDamageGrab = 6;
 	constructor(_szNamePref)
 	{
 		super(_szNamePref);
@@ -1333,19 +1372,18 @@ class class_npc_zombie_policeman extends class_npc_zombie
 
 	PostSpawn()
 	{
-		this.iHP_Base = 20;
-		this.iHP_Head = 7;
-		this.fSpeed = 225;
+		this.aHitbox_Head[0].SetEntityName("Derek_Michael_Chauvin_b_")
+		this.aHitbox_Base[0].SetEntityName("Derek_Michael_Chauvin")
 		this.lModel.SetModel("models/zombie/woman/policeman.vmdl");
 		Instance.EntFireAtTarget({target: this.lModel, input: "SetBodyGroup", value: this.szBodyGroupHead})
 	}
 }
 
 
-function SpawnNPC(vec)
+function SpawnNPC(kv)
 {	
-	kv = {origin: vec, type: NPC_ZOMBIE_TYPE.WOMAN, startanim: NPC_ZOMBIE_START_ANIM.STAND}
-
+	// kv = {origin: vec, type: NPC_ZOMBIE_TYPE.WOMAN, startanim: NPC_ZOMBIE_START_ANIM.STAND}
+	
 	NPC_PRESET_TO_SPAWN.unshift(kv)
 
 	let Template = Instance.FindEntityByName("npc_00");
@@ -1522,6 +1560,18 @@ function GetNPCClassByPhysBox(Phys)
 	}
 
 	return null;
+}
+
+function ConvertTimeFromPlayBack(fTime, fSetPlayBackRate = -1)
+{
+	if (fSetPlayBackRate == -1)
+	{
+		return fTime / g_fPlayBackRate;
+	}
+	else
+	{
+		return fTime / fSetPlayBackRate;
+	}
 }
 
 function IsValidAliveCT(player)
