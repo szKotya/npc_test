@@ -526,7 +526,10 @@ const NPC_ZOMBIE_TYPE = {
 
 const NPC_ZOMBIE_START_ANIM = {
 	STAND: 0,
-	CRAWLS: 1,
+	CRAWLS_A: 1,
+	CRAWLS_B: 2,
+	CRAWLS_MOVE: 3,
+	DOOR: 3,
 }
 
 Instance.OnRoundStart(() => {
@@ -591,7 +594,7 @@ function Tick_Text()
 	// szText += `${vVel.x} ${vVel.y} ${vVel.z} ${Vector3Utils.length(vVel)} `
 
 	let x = 350
-	let y = 300
+	let y = 400
 	let color = { r: 255, g: 0, b: 0, a: 255 };
 
 	Instance.DebugScreenText(szText, x, y, 0.2, color)
@@ -733,13 +736,50 @@ class class_npc_zombie
 
 	StartAnim(Start_Anim)
 	{
-		if (Start_Anim == NPC_ZOMBIE_START_ANIM.STAND)
+		switch (Start_Anim)
 		{
+			case NPC_ZOMBIE_START_ANIM.CRAWLS_A:
+			{
+				// deaf idle notloop
+				// standup2 start
+				break;
+			}
 
-		}
-		else if (Start_Anim == NPC_ZOMBIE_START_ANIM.CRAWLS) 
-		{
+			case NPC_ZOMBIE_START_ANIM.CRAWLS_A:
+			{
+				// dead idle notloop
+				// standup1 start
+				break;
+			}
 
+			case NPC_ZOMBIE_START_ANIM.CRAWLS_MOVE:
+			{
+				// fakedeath idle notloop
+				// fakemove start
+				// standup1 start
+				break;
+			}
+
+			case NPC_ZOMBIE_START_ANIM.DOOR:
+			{
+				// door idle
+
+				break;
+			}
+
+			case NPC_ZOMBIE_START_ANIM.EAT_A:
+			{
+				// eda idle
+
+				break;
+			}
+
+			case NPC_ZOMBIE_START_ANIM.EAT_B:
+			{
+				// eda2 idle
+
+				break;
+			}
 		}
 	}
 
@@ -889,7 +929,7 @@ class class_npc_zombie
 
 	Tick_Attack_Charge()
 	{
-		this.SetAnimation("closehuman", 0.0, this.fAnimRateCharge, true);	
+		this.SetAnimation("closehuman", 0.0, this.fAnimRateCharge, false);	
 	
 		this.fLastCharge = Instance.GetGameTime() + 1.0;
 		this.iNPCStatus = NPC_ANIM_STATUS.ATTACK;
