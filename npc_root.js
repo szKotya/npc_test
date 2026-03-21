@@ -504,7 +504,7 @@ Instance.OnRoundEnd((stuff) => {
     CLEAR_ALL_INTERVAL = true;
 });
 
-Instance.Msg("Script Loaded!");
+
 let CLEAR_ALL_INTERVAL = false;
 
 
@@ -525,38 +525,43 @@ const NPC_ZOMBIE_TYPE = {
 }
 
 const NPC_ZOMBIE_START_ANIM = {
-	STAND: 0,
-	CRAWLS_A: 1,
-	CRAWLS_B: 2,
-	CRAWLS_MOVE: 3,
-	DOOR: 3,
+	STAND: undefined,
+	CRAWLS_A: {szStartAnim: "deaf", bIsStartAnimLoop: false, szPostStartAnim: "standup2", fPostStartAnimDelay: 4.85},
+	CRAWLS_B: {szStartAnim: "dead", bIsStartAnimLoop: false, szPostStartAnim: "standup1", fPostStartAnimDelay: 3.75},
+	CRAWLS_MOVE: {szStartAnim: "fakedeath", bIsStartAnimLoop: false, szPostStartAnim: "standup1", fPostStartAnimDelay: 3.75},
+	DOOR: {szStartAnim: "door", bIsStartAnimLoop: true},
+	EAT_A: {szStartAnim: "eda", bIsStartAnimLoop: true},
+	EAT_B: {szStartAnim: "eda2", bIsStartAnimLoop: true},
 }
 
-Instance.OnRoundStart(() => {
+
+Instance.OnRoundStart(() => {OnRoundStart()});
+function OnRoundStart()
+{
 	clearTasks();
 	NPC_LIST = []
 	NPC_PRESET_TO_SPAWN = []
 
 	Start_Ticks()
-});
+}
 
 function Start_Ticks()
 {
-	const interval = setInterval(() => {
-			if (CLEAR_ALL_INTERVAL) {
-				clearInterval(interval);
-				return;
-			}
+	// const interval = setInterval(() => {
+	// 		if (CLEAR_ALL_INTERVAL) {
+	// 			clearInterval(interval);
+	// 			return;
+	// 		}
 
-			Tick_Text()
+	// 		// Tick_Text()
 
-			}, 0.25 * 1000);
+	// 		}, 0.25 * 1000);
 
 	setTimeout(() => {
-		SpawnNPC({origin: new Vec3(118, 250, 64), type: NPC_ZOMBIE_TYPE.WOMAN, startanim: NPC_ZOMBIE_START_ANIM.STAND});
-		SpawnNPC({origin: new Vec3(-50, 272, 64), type: NPC_ZOMBIE_TYPE.WOMAN, startanim: NPC_ZOMBIE_START_ANIM.STAND});
-		SpawnNPC({origin: new Vec3(118, 300, 32), type: NPC_ZOMBIE_TYPE.FAT, startanim: NPC_ZOMBIE_START_ANIM.STAND});
-		SpawnNPC({origin: new Vec3(118, 200, 128), type: NPC_ZOMBIE_TYPE.POLICEMAN, startanim: NPC_ZOMBIE_START_ANIM.STAND});
+		// SpawnNPC({origin: new Vec3(118, 250, 64), type: NPC_ZOMBIE_TYPE.WOMAN, startanim: NPC_ZOMBIE_START_ANIM.EAT_A});
+		// SpawnNPC({origin: new Vec3(-50, 272, 64), type: NPC_ZOMBIE_TYPE.WOMAN, startanim: NPC_ZOMBIE_START_ANIM.CRAWLS_B});
+		// SpawnNPC({origin: new Vec3(118, 300, 32), type: NPC_ZOMBIE_TYPE.FAT, startanim: NPC_ZOMBIE_START_ANIM.CRAWLS_MOVE});
+		// SpawnNPC({origin: new Vec3(118, 200, 128), type: NPC_ZOMBIE_TYPE.POLICEMAN, startanim: NPC_ZOMBIE_START_ANIM.DOOR});
 		const PLAYERS = Instance.FindEntitiesByClass("player");
 		for (const player of PLAYERS)
 		{
@@ -565,7 +570,7 @@ function Start_Ticks()
 		
 	}, 1500);
 	NPC_EFFECT_HEAD_BROKE = Instance.FindEntityByName("temp_effect_00");
-	Instance.EntFireAtName({name: "npc_00_*", input: "Kill"})
+	// Instance.EntFireAtName({name: "npc_00_*", input: "Kill"})
 }
 Start_Ticks()
 
@@ -680,8 +685,10 @@ class class_npc_zombie
 	fTargetTime;
 	fRetargetTime = 4;
 	// fDistanceSetTarget = 1500;
-	fDistanceSetTarget = 350;
+	fDistanceSetTarget = 250;
 	iDamageGrab = 1
+	fDistanceSetTarget_Min = 350;
+	fDistanceSetTarget_Max = 500
 
 	fLifeWithoutHead = 5.0
 	iHP_Base = 5;
@@ -704,9 +711,11 @@ class class_npc_zombie
 
 	DebugMsg = '';
 
-	
+	StartAnim;
+
 	constructor(_szNamePref)
 	{
+		this.fDistanceSetTarget = GetRandomInt(this.fDistanceSetTarget_Min, this.fDistanceSetTarget_Max);
 		this.szNamePref = _szNamePref;
 		this.fLastAttack = 0.0;
 		this.fLastCharge = 0.0;
@@ -725,6 +734,8 @@ class class_npc_zombie
 		this.fTargetTime = 0.0;
 		this.lLastDamager = null;
 
+		this.StartAnim = undefined;
+
 		this.Ticking = setInterval(() => {
 			if (CLEAR_ALL_INTERVAL) {
 				clearInterval(this.Ticking);
@@ -732,55 +743,6 @@ class class_npc_zombie
 			}
 			this.Tick();
 		}, 0.02 * 1000);
-	}
-
-	StartAnim(Start_Anim)
-	{
-		switch (Start_Anim)
-		{
-			case NPC_ZOMBIE_START_ANIM.CRAWLS_A:
-			{
-				// deaf idle notloop
-				// standup2 start
-				break;
-			}
-
-			case NPC_ZOMBIE_START_ANIM.CRAWLS_A:
-			{
-				// dead idle notloop
-				// standup1 start
-				break;
-			}
-
-			case NPC_ZOMBIE_START_ANIM.CRAWLS_MOVE:
-			{
-				// fakedeath idle notloop
-				// fakemove start
-				// standup1 start
-				break;
-			}
-
-			case NPC_ZOMBIE_START_ANIM.DOOR:
-			{
-				// door idle
-
-				break;
-			}
-
-			case NPC_ZOMBIE_START_ANIM.EAT_A:
-			{
-				// eda idle
-
-				break;
-			}
-
-			case NPC_ZOMBIE_START_ANIM.EAT_B:
-			{
-				// eda2 idle
-
-				break;
-			}
-		}
 	}
 
 	PostSpawn()
@@ -812,26 +774,19 @@ class class_npc_zombie
 
 		const me_Origin = this.lMover.GetAbsOrigin()
 		const fDistanceSetTarget = this.fDistanceSetTarget;
-		let DebugMsg = 0;
 		const NPCSearchFunction = function (player){
 			const target_Origin = GetPlayerAbsOriginCenter(player)
-			DebugMsg = 'y';
 			if (!IsValidAliveCT(player))
 			{
-				DebugMsg = 'x !IsValidAliveCT(player)';
 				return false;
 			}
 		
-			DebugMsg = '1';
 			const fDistance = Vector3Utils.distance(me_Origin, target_Origin);
 
 			if (fDistance > fDistanceSetTarget)
 			{
-				DebugMsg = 'fDistance > fDistanceSetTarget'
 				return false;
 			}
-
-			DebugMsg = '2'
 			
 			const trace_ignore = []
 			const aPhys00 = Instance.FindEntitiesByClass("prop_physics_multiplayer*");
@@ -843,17 +798,12 @@ class class_npc_zombie
 			if (trace.didHit &&
 				trace.hitEntity != player)
 			{
-				DebugMsg = 'trace.didHit' + trace.didHit + ' ' + trace.hitEntity.GetClassName() + ' ' + trace.hitEntity.GetEntityName()
-				Instance.DebugLine({start: me_Origin, end: trace.end, duration: 1.00, color: {r: 255, g: 0, b: 0}});
 				return false;
 			}
 
-			Instance.DebugLine({start: me_Origin, end: trace.end, duration: 1.00, color: {r: 0, g: 255, b: 0}});
-			DebugMsg = 'FINE';
 			return true;
 		}
 		let aTargets = Instance.FindEntitiesByClass("player").filter(player => NPCSearchFunction(player, this));
-		this.DebugMsg = DebugMsg
 		if (aTargets.length == 0)
 		{
 			this.SetTarget(null);
@@ -880,7 +830,6 @@ class class_npc_zombie
 			return 0
 		})
 
-		//Отпускаем игрока если он уже был таргетом у этого зомбу
 		if (aTargets.length > 1)
 		{
 			if (aTargets[0] == this.lLastTarget)
@@ -894,6 +843,11 @@ class class_npc_zombie
 
 	SetTarget(lTarget)
 	{
+		if (lTarget != null)
+		{
+			this.fDistanceSetTarget = GetRandomInt(this.fDistanceSetTarget_Min, this.fDistanceSetTarget_Max);
+		}
+
 		this.lLastTarget = this.lTarget;
 		this.lTarget = lTarget;
 		this.fTargetTime = Instance.GetGameTime() + this.fRetargetTime;
@@ -1052,10 +1006,32 @@ class class_npc_zombie
 			return;
 		}
 
-
-
 		if (this.TargetValid()) //Move
 		{
+			if (this.StartAnim != undefined)
+			{
+				if (this.StartAnim.szPostStartAnim != undefined)
+				{
+					this.iNPCStatus = NPC_ANIM_STATUS.ATTACK;
+					this.SetAnimation(this.StartAnim.szPostStartAnim, 0.0, 1.0, false);
+
+					const DelayFade = setTimeout(() => {
+						if (CLEAR_ALL_INTERVAL)
+						{
+							clearInterval(DelayFade);
+							return;
+						}
+						this.iNPCStatus = NPC_ANIM_STATUS.NONE;
+						this.StartAnim = undefined;
+
+					}, this.StartAnim.fPostStartAnimDelay * 1000);
+
+					return;
+				}
+
+				this.StartAnim = undefined;
+			}
+
 			if (this.iNPCStatus != NPC_ANIM_STATUS.MOVE)
 			{
 				const szMove = ["walk1", "move"]
@@ -1068,14 +1044,19 @@ class class_npc_zombie
 		}
 		else //Idle
 		{
-
 			if (this.iNPCStatus != NPC_ANIM_STATUS.IDLE)
 			{
-				const szMove = ["idle5", "idl2", "idle3", "idle4", "idle"]
-				const iValue = GetRandomInt(0, szMove.length-1);
-
 				this.iNPCStatus = NPC_ANIM_STATUS.IDLE;
-				this.SetAnimation(szMove[iValue], 0.0, 1.0, true);
+				if (this.StartAnim != undefined)
+				{
+					this.SetAnimation(this.StartAnim.szStartAnim, 0.0, 1.0, this.StartAnim.bIsStartAnimLoop);
+				}
+				else
+				{
+					const szMove = ["idle5", "idl2", "idle3", "idle4", "idle"]
+					const iValue = GetRandomInt(0, szMove.length-1);
+					this.SetAnimation(szMove[iValue], 0.0, 1.0, true);
+				}
 			}
 		}
 	}
@@ -1157,6 +1138,14 @@ class class_npc_zombie
 		let iDamage = 1
 		
 		this.lLastDamager = aData.activator
+		if (this.iNPCStatus == NPC_ANIM_STATUS.IDLE)
+		{
+			if (!this.TargetValid())
+			{
+				this.SetTarget(this.lLastDamager);
+			}
+		}
+
 		this.HP_Checks(bHead, iDamage, aData.caller, aData.activator)
 	}
 
@@ -1427,7 +1416,7 @@ function SpawnNPC(kv)
 	NPC_PRESET_TO_SPAWN.unshift(kv)
 
 	let Template = Instance.FindEntityByName("npc_00");
-	Template.ForceSpawn(kv.origin);
+	Template.ForceSpawn(kv.origin, kv.angle);
 }
 
 function RemoveNPC(szNamePref)
@@ -1483,6 +1472,133 @@ Instance.OnScriptInput("Tes", (Activator_Caller_Data) => {
 	}
 })
 
+Instance.OnScriptInput("Spawn_NPC_Zombie_Woman_Stand", (Activator_Caller_Data) => {
+	const vOrigin = Activator_Caller_Data.caller.GetAbsOrigin();
+	const vAngle = Activator_Caller_Data.caller.GetAbsAngles();
+	SpawnNPC({origin: vOrigin, angle: vAngle, type: NPC_ZOMBIE_TYPE.WOMAN, startanim: NPC_ZOMBIE_START_ANIM.STAND});
+})
+
+Instance.OnScriptInput("Spawn_NPC_Zombie_Policeman_Stand", (Activator_Caller_Data) => {
+	const vOrigin = Activator_Caller_Data.caller.GetAbsOrigin();
+	const vAngle = Activator_Caller_Data.caller.GetAbsAngles();
+	SpawnNPC({origin: vOrigin, angle: vAngle, type: NPC_ZOMBIE_TYPE.POLICEMAN, startanim: NPC_ZOMBIE_START_ANIM.STAND});
+})
+
+Instance.OnScriptInput("Spawn_NPC_Zombie_Fat_Stand", (Activator_Caller_Data) => {
+	const vOrigin = Activator_Caller_Data.caller.GetAbsOrigin();
+	const vAngle = Activator_Caller_Data.caller.GetAbsAngles();
+	SpawnNPC({origin: vOrigin, angle: vAngle, type: NPC_ZOMBIE_TYPE.FAT, startanim: NPC_ZOMBIE_START_ANIM.STAND});
+})
+
+Instance.OnScriptInput("Spawn_NPC_Zombie_Woman_Crawls_A", (Activator_Caller_Data) => {
+	const vOrigin = Activator_Caller_Data.caller.GetAbsOrigin();
+	const vAngle = Activator_Caller_Data.caller.GetAbsAngles();
+	SpawnNPC({origin: vOrigin, angle: vAngle, type: NPC_ZOMBIE_TYPE.WOMAN, startanim: NPC_ZOMBIE_START_ANIM.CRAWLS_A});
+})
+
+Instance.OnScriptInput("Spawn_NPC_Zombie_Policeman_Crawls_A", (Activator_Caller_Data) => {
+	const vOrigin = Activator_Caller_Data.caller.GetAbsOrigin();
+	const vAngle = Activator_Caller_Data.caller.GetAbsAngles();
+	SpawnNPC({origin: vOrigin, angle: vAngle, type: NPC_ZOMBIE_TYPE.POLICEMAN, startanim: NPC_ZOMBIE_START_ANIM.CRAWLS_A});
+})
+
+Instance.OnScriptInput("Spawn_NPC_Zombie_Fat_Crawls_A", (Activator_Caller_Data) => {
+	const vOrigin = Activator_Caller_Data.caller.GetAbsOrigin();
+	const vAngle = Activator_Caller_Data.caller.GetAbsAngles();
+	SpawnNPC({origin: vOrigin, angle: vAngle, type: NPC_ZOMBIE_TYPE.FAT, startanim: NPC_ZOMBIE_START_ANIM.CRAWLS_A});
+})
+
+Instance.OnScriptInput("Spawn_NPC_Zombie_Woman_Crawls_B", (Activator_Caller_Data) => {
+	const vOrigin = Activator_Caller_Data.caller.GetAbsOrigin();
+	const vAngle = Activator_Caller_Data.caller.GetAbsAngles();
+	SpawnNPC({origin: vOrigin, angle: vAngle, type: NPC_ZOMBIE_TYPE.WOMAN, startanim: NPC_ZOMBIE_START_ANIM.CRAWLS_B});
+})
+
+Instance.OnScriptInput("Spawn_NPC_Zombie_Policeman_Crawls_B", (Activator_Caller_Data) => {
+	const vOrigin = Activator_Caller_Data.caller.GetAbsOrigin();
+	const vAngle = Activator_Caller_Data.caller.GetAbsAngles();
+	SpawnNPC({origin: vOrigin, angle: vAngle, type: NPC_ZOMBIE_TYPE.POLICEMAN, startanim: NPC_ZOMBIE_START_ANIM.CRAWLS_B});
+})
+
+Instance.OnScriptInput("Spawn_NPC_Zombie_Fat_Crawls_B", (Activator_Caller_Data) => {
+	const vOrigin = Activator_Caller_Data.caller.GetAbsOrigin();
+	const vAngle = Activator_Caller_Data.caller.GetAbsAngles();
+	SpawnNPC({origin: vOrigin, angle: vAngle, type: NPC_ZOMBIE_TYPE.FAT, startanim: NPC_ZOMBIE_START_ANIM.CRAWLS_B});
+})
+
+Instance.OnScriptInput("Spawn_NPC_Zombie_Woman_Crawls_C", (Activator_Caller_Data) => {
+	const vOrigin = Activator_Caller_Data.caller.GetAbsOrigin();
+	const vAngle = Activator_Caller_Data.caller.GetAbsAngles();
+	SpawnNPC({origin: vOrigin, angle: vAngle, type: NPC_ZOMBIE_TYPE.WOMAN, startanim: NPC_ZOMBIE_START_ANIM.CRAWLS_MOVE});
+})
+
+Instance.OnScriptInput("Spawn_NPC_Zombie_Policeman_Crawls_C", (Activator_Caller_Data) => {
+	const vOrigin = Activator_Caller_Data.caller.GetAbsOrigin();
+	const vAngle = Activator_Caller_Data.caller.GetAbsAngles();
+	SpawnNPC({origin: vOrigin, angle: vAngle, type: NPC_ZOMBIE_TYPE.POLICEMAN, startanim: NPC_ZOMBIE_START_ANIM.CRAWLS_MOVE});
+})
+
+Instance.OnScriptInput("Spawn_NPC_Zombie_Fat_Crawls_C", (Activator_Caller_Data) => {
+	const vOrigin = Activator_Caller_Data.caller.GetAbsOrigin();
+	const vAngle = Activator_Caller_Data.caller.GetAbsAngles();
+	SpawnNPC({origin: vOrigin, angle: vAngle, type: NPC_ZOMBIE_TYPE.FAT, startanim: NPC_ZOMBIE_START_ANIM.CRAWLS_MOVE});
+})
+
+Instance.OnScriptInput("Spawn_NPC_Zombie_Woman_Door", (Activator_Caller_Data) => {
+	const vOrigin = Activator_Caller_Data.caller.GetAbsOrigin();
+	const vAngle = Activator_Caller_Data.caller.GetAbsAngles();
+	SpawnNPC({origin: vOrigin, angle: vAngle, type: NPC_ZOMBIE_TYPE.WOMAN, startanim: NPC_ZOMBIE_START_ANIM.DOOR});
+})
+
+Instance.OnScriptInput("Spawn_NPC_Zombie_Policeman_Door", (Activator_Caller_Data) => {
+	const vOrigin = Activator_Caller_Data.caller.GetAbsOrigin();
+	const vAngle = Activator_Caller_Data.caller.GetAbsAngles();
+	SpawnNPC({origin: vOrigin, angle: vAngle, type: NPC_ZOMBIE_TYPE.POLICEMAN, startanim: NPC_ZOMBIE_START_ANIM.DOOR});
+})
+
+Instance.OnScriptInput("Spawn_NPC_Zombie_Fat_Door", (Activator_Caller_Data) => {
+	const vOrigin = Activator_Caller_Data.caller.GetAbsOrigin();
+	const vAngle = Activator_Caller_Data.caller.GetAbsAngles();
+	SpawnNPC({origin: vOrigin, angle: vAngle, type: NPC_ZOMBIE_TYPE.FAT, startanim: NPC_ZOMBIE_START_ANIM.DOOR});
+})
+
+Instance.OnScriptInput("Spawn_NPC_Zombie_Woman_Eat_A", (Activator_Caller_Data) => {
+	const vOrigin = Activator_Caller_Data.caller.GetAbsOrigin();
+	const vAngle = Activator_Caller_Data.caller.GetAbsAngles();
+	SpawnNPC({origin: vOrigin, angle: vAngle, type: NPC_ZOMBIE_TYPE.WOMAN, startanim: NPC_ZOMBIE_START_ANIM.EAT_A});
+})
+
+Instance.OnScriptInput("Spawn_NPC_Zombie_Policeman_Eat_A", (Activator_Caller_Data) => {
+	const vOrigin = Activator_Caller_Data.caller.GetAbsOrigin();
+	const vAngle = Activator_Caller_Data.caller.GetAbsAngles();
+	SpawnNPC({origin: vOrigin, angle: vAngle, type: NPC_ZOMBIE_TYPE.POLICEMAN, startanim: NPC_ZOMBIE_START_ANIM.EAT_A});
+})
+
+Instance.OnScriptInput("Spawn_NPC_Zombie_Fat_Eat_A", (Activator_Caller_Data) => {
+	const vOrigin = Activator_Caller_Data.caller.GetAbsOrigin();
+	const vAngle = Activator_Caller_Data.caller.GetAbsAngles();
+	SpawnNPC({origin: vOrigin, angle: vAngle, type: NPC_ZOMBIE_TYPE.FAT, startanim: NPC_ZOMBIE_START_ANIM.EAT_A});
+})
+
+Instance.OnScriptInput("Spawn_NPC_Zombie_Woman_Eat_B", (Activator_Caller_Data) => {
+	const vOrigin = Activator_Caller_Data.caller.GetAbsOrigin();
+	const vAngle = Activator_Caller_Data.caller.GetAbsAngles();
+	SpawnNPC({origin: vOrigin, angle: vAngle, type: NPC_ZOMBIE_TYPE.WOMAN, startanim: NPC_ZOMBIE_START_ANIM.EAT_B});
+})
+
+Instance.OnScriptInput("Spawn_NPC_Zombie_Policeman_Eat_B", (Activator_Caller_Data) => {
+	const vOrigin = Activator_Caller_Data.caller.GetAbsOrigin();
+	const vAngle = Activator_Caller_Data.caller.GetAbsAngles();
+	SpawnNPC({origin: vOrigin, angle: vAngle, type: NPC_ZOMBIE_TYPE.POLICEMAN, startanim: NPC_ZOMBIE_START_ANIM.EAT_B});
+})
+
+Instance.OnScriptInput("Spawn_NPC_Zombie_Fat_Eat_B", (Activator_Caller_Data) => {
+	const vOrigin = Activator_Caller_Data.caller.GetAbsOrigin();
+	const vAngle = Activator_Caller_Data.caller.GetAbsAngles();
+	SpawnNPC({origin: vOrigin, angle: vAngle, type: NPC_ZOMBIE_TYPE.FAT, startanim: NPC_ZOMBIE_START_ANIM.EAT_B});
+})
+
+
 Instance.OnScriptInput("Input_Connect_NPC_00", (Activator_Caller_Data) => {
 	let KV = NPC_PRESET_TO_SPAWN[0];
 	NPC_PRESET_TO_SPAWN.splice(0, 1);
@@ -1533,7 +1649,7 @@ Instance.OnScriptInput("Input_Connect_NPC_00", (Activator_Caller_Data) => {
 
 	if (KV.startanim != undefined)
 	{
-		NPC.StartAnim(KV.startanim)
+		NPC.StartAnim = KV.startanim;
 	}
 
 	NPC.PostSpawn();
@@ -1645,3 +1761,6 @@ function GetRandomInt(min, max)
     max = Math.floor(max);
     return Math.floor(Math.random() * (max - min + 1)) + min;
 }
+
+Instance.Msg("Script Loaded!");
+OnRoundStart()
