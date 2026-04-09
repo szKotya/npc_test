@@ -539,6 +539,7 @@ Instance.OnRoundStart(() => {OnRoundStart()});
 function OnRoundStart()
 {
 	clearTasks();
+	CLEAR_ALL_INTERVAL = false;
 	NPC_LIST = []
 	NPC_PRESET_TO_SPAWN = []
 
@@ -1148,7 +1149,7 @@ class class_npc_zombie
 
 		this.HP_Checks(bHead, iDamage, aData.caller, aData.activator)
 	}
-
+	//
 	HP_Checks(bHead, iDamage, lHitbox, lDamager)
 	{
 		if (iDamage == -1)
