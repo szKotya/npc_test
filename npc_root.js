@@ -773,7 +773,7 @@ class class_npc_zombie
 			return;
 		}
 
-		const me_Origin = this.lMover.GetAbsOrigin()
+		const me_Origin = Vector3Utils.add(this.lMover.GetAbsOrigin(), new Vec3(0, 0, 32));
 		const fDistanceSetTarget = this.fDistanceSetTarget;
 		const NPCSearchFunction = function (player){
 			const target_Origin = GetPlayerAbsOriginCenter(player)
@@ -781,7 +781,7 @@ class class_npc_zombie
 			{
 				return false;
 			}
-		
+			
 			const fDistance = Vector3Utils.distance(me_Origin, target_Origin);
 
 			if (fDistance > fDistanceSetTarget)
@@ -1086,6 +1086,8 @@ class class_npc_zombie
 		let Step = 10;
 		let qAngles = EulerUtils.rotateTowards(me_Angles, target_Angles, Step)
 
+		target_Angles.pitch = -15
+
 		let fDistance = Vector3Utils.distance(me_Origin, target_Origin)
 		let fDistance_Limit = 10;
 		let vVelocity = {x: 0, y: 0, z: 0}
@@ -1105,7 +1107,6 @@ class class_npc_zombie
 				vVelocity = {x: 0, y: 0, z: 0}
 			}
 		}
-		
 		
 		if (Vector3Utils.equals({x: 0, y: 0, z: 0}, vVelocity))
 		{
